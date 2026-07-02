@@ -136,6 +136,10 @@ button:hover {
   font-size: 1.15rem;
 }
 
+#detected-info {
+  margin: 10px 0 0;
+}
+
 #copy-btn {
   background: #2a2e38;
 }
