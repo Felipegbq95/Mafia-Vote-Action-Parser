@@ -46,7 +46,10 @@ function parseAliasMap(text) {
 // name. Tries progressively shorter word-prefixes against the roster and the
 // alias map first (exact, case-insensitive, longest phrase wins), then falls
 // back to a fuzzy prefix match (handles nicknames like "blotty" for roster
-// entry "Blott"), then just the first word.
+// entry "Blott"). Once a roster is known, a word that matches none of that
+// is treated as "not actually a vote" (e.g. "I might vote unless someone
+// convinces me") rather than invented as a target out of a stray word --
+// only when no roster is known yet at all do we guess the first word.
 function extractTarget(text, roster, aliasMap) {
   let candidate = text.replace(/^[\s:]*(?:for\s+)?/i, "");
   const stopMatch = candidate.match(/^([^.!?;\n]*)/);
@@ -75,6 +78,7 @@ function extractTarget(text, roster, aliasMap) {
       (r) => r.length >= 3 && w0.length >= 3 && (w0.startsWith(r) || r.startsWith(w0))
     );
     if (fuzzyIdx !== -1) return roster[fuzzyIdx];
+    return "";
   }
 
   return words[0];
@@ -99,8 +103,13 @@ function findLastAction(message, roster, aliasMap) {
     return { type: "unvote", target: "" };
   }
 
+  // target === "" means a "vote" keyword was found but nothing after it
+  // resolved to a known player (e.g. "I'll vote unless someone convinces
+  // me") -- distinct from `null` (no vote keyword in the message at all) so
+  // callers can surface *why* a message with the word "vote" in it didn't
+  // register, instead of silently doing nothing.
   const target = extractTarget(message.slice(last.end), roster, aliasMap);
-  return target ? { type: "vote", target } : null;
+  return { type: "vote", target };
 }
 
 // Builds the sorted tally list from a Map<authorLower, {authorDisplay,
@@ -173,6 +182,15 @@ function parseSimpleLog(logText, roster, aliasMap) {
       } else {
         debug.push({ line, note: `${author} unvoted (no active vote to remove)` });
       }
+      continue;
+    }
+
+    if (!action.target) {
+      debug.push({
+        line,
+        note: `${author} used the word "vote" but it didn't match a known player — ignored, previous vote (if any) stands`,
+        ignored: true,
+      });
       continue;
     }
 
@@ -381,6 +399,15 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
         currentVotes.delete(authorLower);
         debug.push({ line: post.author, note: "unvoted" });
       }
+      continue;
+    }
+
+    if (!action.target) {
+      debug.push({
+        line: post.author,
+        note: `used the word "vote" but it didn't match a known player (post #${post.postIndex}) — ignored, previous vote (if any) stands`,
+        ignored: true,
+      });
       continue;
     }
 
