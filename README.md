@@ -6,9 +6,12 @@ produces a ready-to-post vote tally.
 ## Usage
 
 Open `index.html` in a browser (or serve the folder with any static file
-server, e.g. `npx serve .`). Paste the **"Print" / text-only** thread view
-from your forum (the format with `Title:` / `Post by: Name on <date>`
-repeated per post). From your game master's own posts we auto-detect:
+server, e.g. `npx serve .`). Paste your forum's **"Print"** thread view
+(the format with `Title:` / `Post by: Name on <date>` repeated per post)
+into the game thread box. Unlike a plain `<textarea>`, that box keeps rich
+formatting when you paste — bold, links, colors — because it's a
+contenteditable element, not a plain text field. From your game master's own
+posts we auto-detect:
 
 - the current day (from the most recent `Day N Start`, so pasting the whole
   thread from game start each time works fine — only the latest day is
@@ -21,6 +24,20 @@ Within that day, each player's most recent message wins:
 - `VOTE: Name` — casts (or changes) that player's vote
 - `UNVOTE` — clears that player's current vote
 
+If your paste has any bold formatting in it at all, **only a bolded
+`VOTE`/`UNVOTE` counts** — a plain-text mention of the word "vote" in
+someone's prose (e.g. "I might vote unless someone convinces me otherwise")
+is ignored, matching the common house rule that unbolded votes don't count.
+If nothing in the paste is bold (e.g. a plain-text log), every `VOTE`/
+`UNVOTE` mention counts as before — this only kicks in once real formatting
+is actually present.
+
+A name after `VOTE:` that doesn't match anyone on the detected roster or
+alias list (typically a typo) isn't dropped or guessed at — it shows up
+verbatim in a separate "Votes that didn't match a player" box in the
+results, so you can spot and correct it without it silently affecting the
+real tally or majority count.
+
 Quoted earlier messages (`Quote from: X on Y`) are stripped out on a
 best-effort basis so a quoted old vote isn't re-counted as a new one from
 whoever quoted it. Game-master recap posts (`Vote Count`, eliminations, etc.)
@@ -32,11 +49,14 @@ A player who re-votes without ever typing `UNVOTE` is handled the same as an
 explicit unvote-then-vote — whatever their latest message says wins.
 
 The output format matches how game masters usually post it by hand:
-`Name(count): voter1 (#12), voter2 (#47)`, where `#N` is that voter's
-position across the *entire pasted thread* (so it only lines up with a game
-master's real numbering if you paste the whole thread from post #1 each
-time). Players are ranked by vote count, and **ties are broken by whoever
-reached that count first** (standard mafia tie rules), not alphabetically.
+`Name(count): voter1 (#12), voter2 (#47)`, where `#N` matches the forum's own
+"Reply #N" numbering — the thread's very first post doesn't get a reply
+number of its own, so the post right after it is `#1`. This only lines up
+with the forum's real numbering if you paste the whole thread from its true
+first post each time; a partial paste yields numbers relative to wherever
+the paste starts instead. Players are ranked by vote count, and **ties are
+broken by whoever reached that count first** (standard mafia tie rules), not
+alphabetically.
 
 A plain `Username: message` log (one message per line) also works if you'd
 rather not paste a forum export — see the in-app placeholder for the exact
@@ -65,9 +85,15 @@ formatted result straight to your clipboard for posting.
 - Quote-stripping is heuristic, not a full BBCode parser — reused quote
   markup that doesn't cleanly resolve is handled by keeping only the last
   paragraph of the post, which covers the common cases but isn't foolproof.
-- Post numbers are a locally-computed count of posts in what you pasted, not
-  the forum's true internal reply IDs (which aren't present in the
-  text-only export) — accurate only if you paste from post #1 onward.
+- Post numbers are computed locally from what you pasted, matching the
+  forum's "Reply #N" numbering only if you paste starting from the thread's
+  true first post; a partial paste yields numbers relative to wherever the
+  paste starts, not the forum's real reply IDs.
+- Bold-only enforcement checks whether the `VOTE`/`UNVOTE` *keyword itself*
+  is bolded, not the target name — bolding just the player's name without
+  bolding the word "vote" won't count. It also only activates when the paste
+  has bold formatting somewhere in it at all; a fully plain-text paste never
+  requires bold, so nothing breaks for games that don't use this rule.
 - Special vote-weight abilities (e.g. a "double vote" role) aren't detected
   automatically — each player's tally still counts as one vote.
 - Non-lynch votes using the same `VOTE:` syntax for unrelated day-one events

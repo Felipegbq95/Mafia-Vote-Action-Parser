@@ -159,15 +159,18 @@ test("forum format: a later Day N Start resets the tally", () => {
   assert.deepEqual(result.tallies[0].voters, ["Bob"]);
 });
 
-test("forum format: an unresolved vote target is shown raw instead of silently dropped (e.g. a typo)", () => {
+test("forum format: an unresolved vote target is shown raw in a separate list instead of silently dropped (e.g. a typo)", () => {
   const log =
     forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Blott\n2. Zorf\n\nWith 2 players alive it will take 2 to achieve majority.") +
     forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote:blitt");
 
   const result = parseVotes(log, "");
-  assert.equal(result.tallies.length, 1);
-  assert.equal(result.tallies[0].display, "blitt");
-  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+  // Not a real tally entry (an unknown "blitt" shouldn't count toward anyone's
+  // majority) -- it shows up in the separate unresolved list instead.
+  assert.equal(result.tallies.length, 0);
+  assert.equal(result.unresolvedTallies.length, 1);
+  assert.equal(result.unresolvedTallies[0].display, "blitt");
+  assert.deepEqual(result.unresolvedTallies[0].voters, ["Alice"]);
 });
 
 test("forum format: a 'vote' with nothing after it is ignored rather than treated as a target", () => {
@@ -225,15 +228,16 @@ test("forum format: requesting a day that isn't in the pasted thread is reported
   assert.match(message, /Day 5 wasn't found/);
 });
 
-test("forum format: output includes post numbers matching the thread position", () => {
+test("forum format: post numbers match the forum's own \"Reply #N\" numbering, not a raw post count", () => {
   const log =
     forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
     forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob");
 
   const result = parseVotes(log, "");
   const message = buildMessage(result);
-  // Alice's post is the 2nd post in the thread.
-  assert.match(message, /Bob\(1\): Alice \(#2\)/);
+  // Bobsal's post is the thread's original post -- SMF gives it no reply
+  // number at all -- so Alice's post right after it is Reply #1, not #2.
+  assert.match(message, /Bob\(1\): Alice \(#1\)/);
 });
 
 test("forum format: alias whitelist resolves nicknames unrelated to the roster name", () => {
@@ -244,6 +248,52 @@ test("forum format: alias whitelist resolves nicknames unrelated to the roster n
   const result = parseVotes(log, "", { aliasText: "Axatar: Joe, Joe Boy" });
   assert.equal(result.tallies.length, 1);
   assert.equal(result.tallies[0].display, "Axatar");
+});
+
+// --- Bold-only voting -------------------------------------------------------
+//
+// When the pasted content actually carries bold formatting (via the
+// contenteditable box's DOM walk in the browser), only a bolded "vote" /
+// "unvote" counts, matching most games' own rule. These tests use the same
+// \u0001 / \u0002 sentinels the DOM walk emits to simulate that without a
+// browser.
+const B = "\u0001";
+const E = "\u0002";
+
+test("bold-only voting: a bolded vote counts, a plain-text one is ignored", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", `${B}vote bob${E}`) +
+    forumPost("Bob", "May 1, 2026, 1:06:00 PM", "I might vote unless someone convinces me otherwise");
+
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+
+  const ignoredNote = result.debug.find((d) => d.line === "Bob" && d.ignored);
+  assert.ok(ignoredNote, "Bob's plain-text 'vote' mention should be logged as ignored");
+  assert.match(ignoredNote.note, /not in bold/);
+});
+
+test("bold-only voting: with no bold anywhere in the paste, plain-text votes still count (backward compatible)", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob");
+
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+});
+
+test("bold-only voting: only the bolded portion of a message needs to cover the vote keyword", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", `thinking about it... ${B}vote${E}: bob`);
+
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
 });
 
 test("forum format: real game excerpt (Day 10) matches the game master's own final tally", () => {

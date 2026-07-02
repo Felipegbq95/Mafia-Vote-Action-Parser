@@ -17,13 +17,19 @@
       <section class="panel">
         <label for="log-input">Game thread</label>
         <p class="hint">
-          Paste your forum's <strong>"Print" / text-only</strong> thread view (the format with
+          Paste your forum's <strong>"Print"</strong> thread view (the format with
           <code>Title:</code> / <code>Post by: Name on &lt;date&gt;</code> per post). We auto-detect the
           current day, the alive player roster, and the majority threshold from your game master's
           posts, and tally each player's most recent <code>VOTE: Name</code> / <code>UNVOTE</code> —
-          quoted old votes are ignored. Plain <code>Username: message</code> logs also work.
+          quoted old votes are ignored. Plain <code>Username: message</code> logs also work. This box
+          keeps bold formatting when you paste, and if your game only counts <strong>bolded</strong>
+          votes, we only count bolded ones too.
         </p>
-        <textarea id="log-input" placeholder="Title: Re: My Mafia Game
+        <div
+          id="log-input"
+          class="log-input"
+          contenteditable="true"
+          data-placeholder="Title: Re: My Mafia Game
 Post by: Alice on May 31, 2026, 4:33:00 PM
 Day 1 Start
 
@@ -41,7 +47,8 @@ VOTE: Carol
 
 Title: Re: My Mafia Game
 Post by: Carol on May 31, 2026, 5:20:00 PM
-Not me! VOTE: Bob"></textarea>
+Not me! VOTE: Bob"
+        ></div>
 
         <div class="options">
           <div class="field">
@@ -73,6 +80,15 @@ Camborghini: Jerry"></textarea>
         </div>
         <p id="detected-info" class="hint"></p>
         <pre id="output"></pre>
+
+        <section id="unresolved-section" hidden>
+          <h3>Votes that didn't match a player</h3>
+          <p class="hint">
+            Something after "vote" that isn't a known roster name or alias — likely a typo. Not
+            counted toward any tally or majority above.
+          </p>
+          <ul id="unresolved-list"></ul>
+        </section>
 
         <details id="debug-details">
           <summary>Parse details</summary>

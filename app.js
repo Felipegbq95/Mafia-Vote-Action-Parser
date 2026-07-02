@@ -2,9 +2,27 @@
 
 const KEYWORD_RE = /\b(unvote|vote)\b/gi;
 
+// Invisible sentinels marking bold spans, inserted by the DOM->text walk in
+// the browser (see extractMarkedText below) when the pasted content actually
+// carries rich formatting. Plain strings (tests, plain-text pastes) never
+// contain these, which is what lets bold-checking stay a no-op for them.
+const BOLD_START = "\u0001";
+const BOLD_END = "\u0002";
+
+function isBoldAt(str, index) {
+  let depth = 0;
+  for (let i = 0; i < index; i++) {
+    const ch = str[i];
+    if (ch === BOLD_START) depth++;
+    else if (ch === BOLD_END) depth = Math.max(0, depth - 1);
+  }
+  return depth > 0;
+}
+
 function normalizeTarget(raw) {
   if (!raw) return "";
   return raw
+    .replace(/[\u0001\u0002]/g, "")
     .replace(/^[@"'\s]+|["'\s.,!?;:]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -46,31 +64,31 @@ function parseAliasMap(text) {
 // name. Tries progressively shorter word-prefixes against the roster and the
 // alias map first (exact, case-insensitive, longest phrase wins), then falls
 // back to a fuzzy prefix match (handles nicknames like "blotty" for roster
-// entry "Blott"). If nothing matches, the raw typed word is used as-is
-// (e.g. a typo like "blitt" shows up as its own tally entry) rather than
-// being silently dropped -- deliberately visible over silently "clever",
-// since a plain-text paste has no reliable way to tell a genuine (possibly
-// misspelled) vote apart from a stray, unrelated use of the word "vote".
+// entry "Blott"). Returns { text, resolved }: resolved is true when the name
+// matched a known player (or no roster is known yet, so there's nothing to
+// check against). If a roster is known and nothing matched, the raw typed
+// word is returned with resolved: false -- callers surface these separately
+// (e.g. a typo like "blitt") rather than silently dropping them.
 function extractTarget(text, roster, aliasMap) {
   let candidate = text.replace(/^[\s:]*(?:for\s+)?/i, "");
   const stopMatch = candidate.match(/^([^.!?;\n]*)/);
   candidate = (stopMatch ? stopMatch[1] : candidate).trim();
-  if (!candidate) return "";
+  if (!candidate) return { text: "", resolved: false };
 
   const words = candidate
     .split(/\s+/)
     .filter(Boolean)
     .map(normalizeTarget)
     .filter(Boolean);
-  if (!words.length) return "";
+  if (!words.length) return { text: "", resolved: false };
 
   const rosterLower = roster && roster.length ? roster.map((r) => r.toLowerCase()) : [];
 
   for (let n = Math.min(words.length, 4); n >= 1; n--) {
     const candText = words.slice(0, n).join(" ").toLowerCase();
     const rosterIdx = rosterLower.indexOf(candText);
-    if (rosterIdx !== -1) return roster[rosterIdx];
-    if (aliasMap && aliasMap.has(candText)) return aliasMap.get(candText);
+    if (rosterIdx !== -1) return { text: roster[rosterIdx], resolved: true };
+    if (aliasMap && aliasMap.has(candText)) return { text: aliasMap.get(candText), resolved: true };
   }
 
   if (rosterLower.length) {
@@ -78,10 +96,12 @@ function extractTarget(text, roster, aliasMap) {
     const fuzzyIdx = rosterLower.findIndex(
       (r) => r.length >= 3 && w0.length >= 3 && (w0.startsWith(r) || r.startsWith(w0))
     );
-    if (fuzzyIdx !== -1) return roster[fuzzyIdx];
+    if (fuzzyIdx !== -1) return { text: roster[fuzzyIdx], resolved: true };
   }
 
-  return words[0];
+  if (!rosterLower.length) return { text: words[0], resolved: true };
+
+  return { text: words[0], resolved: false };
 }
 
 // Only the last VOTE/UNVOTE keyword in a message determines that message's
@@ -89,16 +109,34 @@ function extractTarget(text, roster, aliasMap) {
 // swallowing it (e.g. "VOTE: Bob actually no UNVOTE" must resolve to unvote).
 // A player who re-votes without ever typing UNVOTE is handled the same way
 // as an explicit unvote+vote: whatever their latest message says wins.
-function findLastAction(message, roster, aliasMap) {
+//
+// requireBold: when the pasted content actually carries bold formatting
+// (BOLD_START appears anywhere in it), the game's own rule applies -- only a
+// bolded "vote"/"unvote" counts. Keyword occurrences that aren't bolded are
+// skipped entirely, as if the word wasn't a vote action at all. When the
+// paste carries no formatting info (plain text, or the unit tests), this is
+// a no-op and every keyword occurrence is eligible, same as before.
+function findLastAction(message, roster, aliasMap, requireBold) {
   const keywords = [];
   let match;
   KEYWORD_RE.lastIndex = 0;
   while ((match = KEYWORD_RE.exec(message)) !== null) {
-    keywords.push({ type: match[1].toLowerCase(), end: match.index + match[1].length });
+    keywords.push({
+      type: match[1].toLowerCase(),
+      start: match.index,
+      end: match.index + match[1].length,
+    });
   }
   if (keywords.length === 0) return null;
 
-  const last = keywords[keywords.length - 1];
+  const eligible = requireBold ? keywords.filter((k) => isBoldAt(message, k.start)) : keywords;
+  if (eligible.length === 0) {
+    // Every "vote"/"unvote" mention in this message was plain text, not
+    // bold -- per the game's rule, none of them count as a real action.
+    return { type: "unbolded", target: "" };
+  }
+
+  const last = eligible[eligible.length - 1];
   if (last.type === "unvote") {
     return { type: "unvote", target: "" };
   }
@@ -109,7 +147,7 @@ function findLastAction(message, roster, aliasMap) {
   // callers can surface *why* a message with the word "vote" in it didn't
   // register, instead of silently doing nothing.
   const target = extractTarget(message.slice(last.end), roster, aliasMap);
-  return { type: "vote", target };
+  return { type: "vote", target: target.text, resolved: target.resolved };
 }
 
 // Builds the sorted tally list from a Map<authorLower, {authorDisplay,
@@ -149,7 +187,8 @@ function buildTallies(currentVotes) {
 const LINE_RE = /^([^:]{1,50}):\s*([\s\S]*)$/;
 
 function parseSimpleLog(logText, roster, aliasMap) {
-  const currentVotes = new Map(); // authorLower -> { authorDisplay, targetLower, targetDisplay, order }
+  const requireBold = (logText || "").includes(BOLD_START);
+  const currentVotes = new Map(); // authorLower -> { authorDisplay, targetLower, targetDisplay, order, resolved }
   const debug = [];
   const lines = (logText || "").split("\n");
   let order = 0;
@@ -168,10 +207,15 @@ function parseSimpleLog(logText, roster, aliasMap) {
     const author = lineMatch[1].trim();
     const message = lineMatch[2];
     const authorLower = author.toLowerCase();
-    const action = findLastAction(message, roster, aliasMap);
+    const action = findLastAction(message, roster, aliasMap, requireBold);
 
     if (!action) {
       debug.push({ line, note: "no vote action found", ignored: true });
+      continue;
+    }
+
+    if (action.type === "unbolded") {
+      debug.push({ line, note: `${author} mentioned "vote"/"unvote" but not in bold — ignored`, ignored: true });
       continue;
     }
 
@@ -195,11 +239,19 @@ function parseSimpleLog(logText, roster, aliasMap) {
       targetLower: action.target.toLowerCase(),
       targetDisplay: action.target,
       order,
+      resolved: action.resolved,
     });
     debug.push({ line, note: `${author} → votes ${action.target}` });
   }
 
-  const tallies = buildTallies(currentVotes);
+  const resolvedVotes = new Map();
+  const unresolvedVotes = new Map();
+  for (const [key, v] of currentVotes) {
+    (v.resolved ? resolvedVotes : unresolvedVotes).set(key, v);
+  }
+
+  const tallies = buildTallies(resolvedVotes);
+  const unresolvedTallies = buildTallies(unresolvedVotes);
   const votingAuthors = new Set(currentVotes.keys());
   const notVoting = roster.filter((p) => !votingAuthors.has(p.toLowerCase()));
   const majority = roster.length ? Math.floor(roster.length / 2) + 1 : null;
@@ -209,6 +261,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
     requestedDay: null,
     dayFound: true,
     tallies,
+    unresolvedTallies,
     notVoting,
     majority,
     roster,
@@ -239,11 +292,13 @@ function looksLikeForumThread(text) {
   return /Post by:\s*.+\s+on\s+.+/.test(text);
 }
 
-// postIndex is the 1-based position of each post across the *entire* pasted
-// thread (including the game master's own posts), matching the "(#N)" style
-// numbers a game master tallies by hand — but only if the whole thread is
-// pasted starting from post #1; a partial paste yields numbers relative to
-// wherever the paste starts, not the forum's true numbering.
+// postIndex matches the forum's own "Reply #N" numbering: the thread's
+// original post (the very first header in the pasted text) never gets a
+// reply number of its own in SMF, so it's index 0 and the first actual
+// reply after it is #1, counting up from there — matching the "(#N)" style
+// numbers a game master tallies by hand, but only if the whole thread is
+// pasted starting from the true first post; a partial paste yields numbers
+// relative to wherever the paste starts, not the forum's true numbering.
 function splitForumPosts(rawText) {
   const headers = [];
   let m;
@@ -264,7 +319,7 @@ function splitForumPosts(rawText) {
       author: h.author,
       timestamp: h.timestamp,
       content: rawText.slice(h.contentStart, end).trim(),
-      postIndex: i + 1,
+      postIndex: i,
     });
   }
   return posts;
@@ -331,6 +386,7 @@ function stripQuotes(content, postMap) {
 }
 
 function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, aliasMap = null } = {}) {
+  const requireBold = rawText.includes(BOLD_START);
   const posts = splitForumPosts(rawText);
   const postMap = new Map();
 
@@ -386,10 +442,20 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     if (targetDay != null && dayNumber !== targetDay) continue;
 
     const cleaned = stripQuotes(post.content, postMap);
-    const action = findLastAction(cleaned, roster, aliasMap);
+    const action = findLastAction(cleaned, roster, aliasMap, requireBold);
     if (!action) continue;
 
     const authorLower = post.author.toLowerCase();
+
+    if (action.type === "unbolded") {
+      debug.push({
+        line: post.author,
+        note: `mentioned "vote"/"unvote" but not in bold (post #${post.postIndex}) — ignored`,
+        ignored: true,
+      });
+      continue;
+    }
+
     if (action.type === "unvote") {
       if (currentVotes.has(authorLower)) {
         currentVotes.delete(authorLower);
@@ -412,11 +478,19 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
       targetDisplay: action.target,
       targetLower: action.target.toLowerCase(),
       order: post.postIndex,
+      resolved: action.resolved,
     });
     debug.push({ line: post.author, note: `votes ${action.target} (post #${post.postIndex})` });
   }
 
-  const tallies = buildTallies(currentVotes);
+  const resolvedVotes = new Map();
+  const unresolvedVotes = new Map();
+  for (const [key, v] of currentVotes) {
+    (v.resolved ? resolvedVotes : unresolvedVotes).set(key, v);
+  }
+
+  const tallies = buildTallies(resolvedVotes);
+  const unresolvedTallies = buildTallies(unresolvedVotes);
 
   // Voter identities are full forum usernames (e.g. "Blottica") while the
   // roster uses short in-game names (e.g. "Blott"), so "not voting" is
@@ -434,6 +508,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     requestedDay: targetDay,
     dayFound,
     tallies,
+    unresolvedTallies,
     notVoting,
     majority,
     roster,
@@ -498,6 +573,53 @@ function buildMessage(result) {
 
 // --- Wiring ---------------------------------------------------------------
 
+// The game thread box is a contenteditable div rather than a <textarea>
+// specifically so pasted rich text keeps its formatting: browsers only hand
+// a <textarea> the plain-text clipboard entry, but a contenteditable element
+// receives the actual pasted HTML (bold, links, colors, all of it) and
+// renders it as real DOM nodes. This walks those nodes back into a single
+// string for the regex-based parser, wrapping any text that's bold (a <b>/
+// <strong> tag, or an inline/computed font-weight of 600+) in the BOLD_START
+// / BOLD_END sentinels so findLastAction can tell a genuine bolded vote from
+// a plain-text mention of the word "vote" in someone's prose — matching the
+// game's own rule that only bolded votes count. Content typed by hand (no
+// paste) naturally produces no bold markers at all, same as a plain-text log.
+function extractMarkedText(root) {
+  const BLOCK_TAGS = new Set(["div", "p", "li", "tr", "blockquote", "h1", "h2", "h3", "h4"]);
+  let text = "";
+
+  function isBoldNode(node) {
+    const tag = node.tagName.toLowerCase();
+    if (tag === "b" || tag === "strong") return true;
+    const weight = node.style && node.style.fontWeight;
+    if (!weight) return false;
+    if (weight === "bold" || weight === "bolder") return true;
+    const n = parseInt(weight, 10);
+    return !Number.isNaN(n) && n >= 600;
+  }
+
+  function walk(node, bold) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!node.nodeValue) return;
+      text += bold ? BOLD_START + node.nodeValue + BOLD_END : node.nodeValue;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "script" || tag === "style") return;
+    if (tag === "br") {
+      text += "\n";
+      return;
+    }
+    const childBold = bold || isBoldNode(node);
+    for (const child of node.childNodes) walk(child, childBold);
+    if (BLOCK_TAGS.has(tag)) text += "\n";
+  }
+
+  for (const child of root.childNodes) walk(child, false);
+  return text;
+}
+
 if (typeof document !== "undefined") {
   const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
 
@@ -511,6 +633,8 @@ if (typeof document !== "undefined") {
   const output = document.getElementById("output");
   const debugList = document.getElementById("debug-list");
   const detectedInfo = document.getElementById("detected-info");
+  const unresolvedSection = document.getElementById("unresolved-section");
+  const unresolvedList = document.getElementById("unresolved-list");
 
   try {
     const savedAliases = window.localStorage.getItem(ALIAS_STORAGE_KEY);
@@ -526,7 +650,8 @@ if (typeof document !== "undefined") {
       // ignore
     }
 
-    const result = parseVotes(logInput.value, playersInput.value, {
+    const rawText = extractMarkedText(logInput);
+    const result = parseVotes(rawText, playersInput.value, {
       day: dayInput.value.trim(),
       aliasText: aliasInput.value,
     });
@@ -548,6 +673,20 @@ if (typeof document !== "undefined") {
       li.textContent = `${entry.line} — ${entry.note}`;
       if (entry.ignored) li.classList.add("ignored");
       debugList.appendChild(li);
+    }
+
+    if (unresolvedSection && unresolvedList) {
+      unresolvedList.innerHTML = "";
+      const unresolved = result.unresolvedTallies || [];
+      unresolvedSection.hidden = unresolved.length === 0;
+      for (const t of unresolved) {
+        const li = document.createElement("li");
+        const voterText = result.showPostNumbers
+          ? t.voterEntries.map((v) => `${v.name} (#${v.order})`).join(", ")
+          : t.voters.join(", ");
+        li.textContent = `${t.display}(${t.voters.length}): ${voterText}`;
+        unresolvedList.appendChild(li);
+      }
     }
 
     resultsSection.hidden = false;
