@@ -1,0 +1,9 @@
+{
+  "name": "mafia-vote-counter",
+  "version": "1.0.0",
+  "description": "Parses a pasted Mafia game log for VOTE/UNVOTE actions and produces a ready-to-post vote tally.",
+  "private": true,
+  "scripts": {
+    "test": "node --test app.test.js"
+  }
+}

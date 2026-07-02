@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mafia Vote Counter</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🕵️ Mafia Vote Counter</h1>
+      <p class="subtitle">Paste your game log, get an instant vote tally &amp; a ready-to-post message.</p>
+    </header>
+
+    <main>
+      <section class="panel">
+        <label for="log-input">Game log</label>
+        <p class="hint">
+          One message per line, formatted as <code>Username: message</code>.
+          Recognized actions anywhere in a message: <code>VOTE: Name</code> and <code>UNVOTE</code>
+          (only each player's <em>last</em> action counts).
+        </p>
+        <textarea id="log-input" placeholder="Alice: I think it's Bob. VOTE: Bob
+Bob: nice try. VOTE: Alice
+Carol: VOTE: Bob
+Alice: actually... UNVOTE
+Alice: VOTE: Carol"></textarea>
+
+        <div class="options">
+          <div class="field">
+            <label for="day-label">Day label (optional)</label>
+            <input id="day-label" type="text" placeholder="Day 3" />
+          </div>
+          <div class="field">
+            <label for="players-input">Player list (optional, comma-separated)</label>
+            <input id="players-input" type="text" placeholder="Alice, Bob, Carol, Dave" />
+          </div>
+        </div>
+
+        <button id="parse-btn">Count Votes</button>
+      </section>
+
+      <section class="panel" id="results" hidden>
+        <div class="results-header">
+          <h2>Results</h2>
+          <button id="copy-btn">Copy message</button>
+        </div>
+        <pre id="output"></pre>
+
+        <details id="debug-details">
+          <summary>Parse details</summary>
+          <ul id="debug-list"></ul>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
