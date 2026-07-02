@@ -17,11 +17,37 @@ function parsePlayerList(text) {
     .filter(Boolean);
 }
 
+// "CanonicalName: alias1, alias2" per line -> Map<aliasLower, CanonicalName>.
+// Lets players who go by an unrelated nickname (e.g. "Axatar" also goes by
+// "Joe") resolve correctly without relying on prefix/fuzzy guessing.
+function parseAliasMap(text) {
+  const map = new Map();
+  const lines = (text || "").split("\n");
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const sepIdx = line.indexOf(":");
+    if (sepIdx === -1) continue;
+    const canonical = line.slice(0, sepIdx).trim();
+    if (!canonical) continue;
+    const aliases = line
+      .slice(sepIdx + 1)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const alias of aliases) {
+      map.set(alias.toLowerCase(), canonical);
+    }
+  }
+  return map;
+}
+
 // Resolves the free-text word(s) after a vote keyword to a canonical roster
-// name. Tries progressively shorter word-prefixes against the roster first
-// (exact, case-insensitive), then falls back to a fuzzy prefix match (handles
-// nicknames like "blotty" for roster entry "Blott"), then just the first word.
-function extractTarget(text, roster) {
+// name. Tries progressively shorter word-prefixes against the roster and the
+// alias map first (exact, case-insensitive, longest phrase wins), then falls
+// back to a fuzzy prefix match (handles nicknames like "blotty" for roster
+// entry "Blott"), then just the first word.
+function extractTarget(text, roster, aliasMap) {
   let candidate = text.replace(/^[\s:]*(?:for\s+)?/i, "");
   const stopMatch = candidate.match(/^([^.!?;\n]*)/);
   candidate = (stopMatch ? stopMatch[1] : candidate).trim();
@@ -34,13 +60,16 @@ function extractTarget(text, roster) {
     .filter(Boolean);
   if (!words.length) return "";
 
-  if (roster && roster.length) {
-    const rosterLower = roster.map((r) => r.toLowerCase());
-    for (let n = Math.min(words.length, 4); n >= 1; n--) {
-      const candText = words.slice(0, n).join(" ").toLowerCase();
-      const idx = rosterLower.indexOf(candText);
-      if (idx !== -1) return roster[idx];
-    }
+  const rosterLower = roster && roster.length ? roster.map((r) => r.toLowerCase()) : [];
+
+  for (let n = Math.min(words.length, 4); n >= 1; n--) {
+    const candText = words.slice(0, n).join(" ").toLowerCase();
+    const rosterIdx = rosterLower.indexOf(candText);
+    if (rosterIdx !== -1) return roster[rosterIdx];
+    if (aliasMap && aliasMap.has(candText)) return aliasMap.get(candText);
+  }
+
+  if (rosterLower.length) {
     const w0 = words[0].toLowerCase();
     const fuzzyIdx = rosterLower.findIndex(
       (r) => r.length >= 3 && w0.length >= 3 && (w0.startsWith(r) || r.startsWith(w0))
@@ -54,7 +83,9 @@ function extractTarget(text, roster) {
 // Only the last VOTE/UNVOTE keyword in a message determines that message's
 // action, so a target capture must stop at the next keyword rather than
 // swallowing it (e.g. "VOTE: Bob actually no UNVOTE" must resolve to unvote).
-function findLastAction(message, roster) {
+// A player who re-votes without ever typing UNVOTE is handled the same way
+// as an explicit unvote+vote: whatever their latest message says wins.
+function findLastAction(message, roster, aliasMap) {
   const keywords = [];
   let match;
   KEYWORD_RE.lastIndex = 0;
@@ -68,23 +99,56 @@ function findLastAction(message, roster) {
     return { type: "unvote", target: "" };
   }
 
-  const target = extractTarget(message.slice(last.end), roster);
+  const target = extractTarget(message.slice(last.end), roster, aliasMap);
   return target ? { type: "vote", target } : null;
+}
+
+// Builds the sorted tally list from a Map<authorLower, {authorDisplay,
+// targetLower, targetDisplay, order}>. Voters within a target are listed in
+// the order they voted (ascending "order"). Targets are ranked by vote count
+// descending; ties are broken by whoever reached that count first
+// (ascending order of their most recent/deciding voter) — matching standard
+// mafia tie rules, not alphabetically.
+function buildTallies(currentVotes) {
+  const tallyMap = new Map(); // targetLower -> { display, entries: [{name, order}] }
+  for (const { authorDisplay, targetLower, targetDisplay, order } of currentVotes.values()) {
+    if (!tallyMap.has(targetLower)) tallyMap.set(targetLower, { display: targetDisplay, entries: [] });
+    tallyMap.get(targetLower).entries.push({ name: authorDisplay, order });
+  }
+
+  const tallies = Array.from(tallyMap.values()).map((t) => {
+    const entries = t.entries.slice().sort((a, b) => a.order - b.order);
+    const reachedAt = entries.length ? entries[entries.length - 1].order : 0;
+    return {
+      display: t.display,
+      voters: entries.map((e) => e.name),
+      voterEntries: entries,
+      reachedAt,
+    };
+  });
+
+  tallies.sort((a, b) => {
+    if (b.voters.length !== a.voters.length) return b.voters.length - a.voters.length;
+    return a.reachedAt - b.reachedAt;
+  });
+
+  return tallies;
 }
 
 // --- Simple "Username: message" log format ---------------------------------
 
 const LINE_RE = /^([^:]{1,50}):\s*([\s\S]*)$/;
 
-function parseSimpleLog(logText, roster) {
-  const currentVotes = new Map(); // authorLower -> { authorDisplay, targetLower, targetDisplay }
+function parseSimpleLog(logText, roster, aliasMap) {
+  const currentVotes = new Map(); // authorLower -> { authorDisplay, targetLower, targetDisplay, order }
   const debug = [];
-
   const lines = (logText || "").split("\n");
+  let order = 0;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
+    order++;
 
     const lineMatch = line.match(LINE_RE);
     if (!lineMatch) {
@@ -95,7 +159,7 @@ function parseSimpleLog(logText, roster) {
     const author = lineMatch[1].trim();
     const message = lineMatch[2];
     const authorLower = author.toLowerCase();
-    const action = findLastAction(message, roster);
+    const action = findLastAction(message, roster, aliasMap);
 
     if (!action) {
       debug.push({ line, note: "no vote action found", ignored: true });
@@ -116,6 +180,7 @@ function parseSimpleLog(logText, roster) {
       authorDisplay: author,
       targetLower: action.target.toLowerCase(),
       targetDisplay: action.target,
+      order,
     });
     debug.push({ line, note: `${author} → votes ${action.target}` });
   }
@@ -125,7 +190,17 @@ function parseSimpleLog(logText, roster) {
   const notVoting = roster.filter((p) => !votingAuthors.has(p.toLowerCase()));
   const majority = roster.length ? Math.floor(roster.length / 2) + 1 : null;
 
-  return { day: null, tallies, notVoting, majority, roster, debug };
+  return {
+    day: null,
+    requestedDay: null,
+    dayFound: true,
+    tallies,
+    notVoting,
+    majority,
+    roster,
+    debug,
+    showPostNumbers: false,
+  };
 }
 
 // --- Forum "print" thread format --------------------------------------------
@@ -150,6 +225,11 @@ function looksLikeForumThread(text) {
   return /Post by:\s*.+\s+on\s+.+/.test(text);
 }
 
+// postIndex is the 1-based position of each post across the *entire* pasted
+// thread (including the game master's own posts), matching the "(#N)" style
+// numbers a game master tallies by hand — but only if the whole thread is
+// pasted starting from post #1; a partial paste yields numbers relative to
+// wherever the paste starts, not the forum's true numbering.
 function splitForumPosts(rawText) {
   const headers = [];
   let m;
@@ -166,7 +246,12 @@ function splitForumPosts(rawText) {
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i];
     const end = i + 1 < headers.length ? headers[i + 1].matchStart : rawText.length;
-    posts.push({ author: h.author, timestamp: h.timestamp, content: rawText.slice(h.contentStart, end).trim() });
+    posts.push({
+      author: h.author,
+      timestamp: h.timestamp,
+      content: rawText.slice(h.contentStart, end).trim(),
+      postIndex: i + 1,
+    });
   }
   return posts;
 }
@@ -231,26 +316,15 @@ function stripQuotes(content, postMap) {
   return output.join("\n");
 }
 
-function buildTallies(currentVotes) {
-  const tallyMap = new Map(); // targetLower -> { display, voters: [] }
-  for (const { authorDisplay, targetLower, targetDisplay } of currentVotes.values()) {
-    if (!tallyMap.has(targetLower)) tallyMap.set(targetLower, { display: targetDisplay, voters: [] });
-    tallyMap.get(targetLower).voters.push(authorDisplay);
-  }
-  return Array.from(tallyMap.values()).sort((a, b) => {
-    if (b.voters.length !== a.voters.length) return b.voters.length - a.voters.length;
-    return a.display.localeCompare(b.display);
-  });
-}
-
-function parseForumThread(rawText, fallbackRoster) {
+function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, aliasMap = null } = {}) {
   const posts = splitForumPosts(rawText);
   const postMap = new Map();
 
   let currentVotes = new Map();
-  let roster = (fallbackRoster || []).slice();
+  let roster = fallbackRoster.slice();
   let majority = null;
   let dayNumber = null;
+  let dayFound = targetDay == null;
   const debug = [];
 
   for (const post of posts) {
@@ -265,27 +339,40 @@ function parseForumThread(rawText, fallbackRoster) {
     if (SYSTEM_SIGNATURE_RE.test(post.content)) {
       const dayMatch = post.content.match(DAY_START_RE);
       if (dayMatch) {
-        dayNumber = parseInt(dayMatch[1], 10);
-        currentVotes = new Map();
-        debug.push({ line: `Day ${dayNumber} Start`, note: "new day detected, tally reset" });
-      }
-      const rosterMatch = post.content.match(ROSTER_BLOCK_RE);
-      if (rosterMatch) {
-        const names = [];
-        let lm;
-        ROSTER_LINE_RE.lastIndex = 0;
-        while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
-          names.push(lm[1].trim());
+        const newDay = parseInt(dayMatch[1], 10);
+        if (targetDay != null && dayNumber === targetDay && newDay !== targetDay) {
+          // We've already captured the requested day in full; anything from
+          // a later day (or a different one) is irrelevant to that tally.
+          break;
         }
-        if (names.length) roster = names;
+        if (targetDay == null || newDay === targetDay) {
+          dayNumber = newDay;
+          currentVotes = new Map();
+          if (newDay === targetDay) dayFound = true;
+          debug.push({ line: `Day ${dayNumber} Start`, note: "new day detected, tally reset" });
+        }
       }
-      const majorityMatch = post.content.match(MAJORITY_RE);
-      if (majorityMatch) majority = parseInt(majorityMatch[1], 10);
+      if (targetDay == null || dayNumber === targetDay) {
+        const rosterMatch = post.content.match(ROSTER_BLOCK_RE);
+        if (rosterMatch) {
+          const names = [];
+          let lm;
+          ROSTER_LINE_RE.lastIndex = 0;
+          while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
+            names.push(lm[1].trim());
+          }
+          if (names.length) roster = names;
+        }
+        const majorityMatch = post.content.match(MAJORITY_RE);
+        if (majorityMatch) majority = parseInt(majorityMatch[1], 10);
+      }
       continue;
     }
 
+    if (targetDay != null && dayNumber !== targetDay) continue;
+
     const cleaned = stripQuotes(post.content, postMap);
-    const action = findLastAction(cleaned, roster);
+    const action = findLastAction(cleaned, roster, aliasMap);
     if (!action) continue;
 
     const authorLower = post.author.toLowerCase();
@@ -301,8 +388,9 @@ function parseForumThread(rawText, fallbackRoster) {
       authorDisplay: post.author,
       targetDisplay: action.target,
       targetLower: action.target.toLowerCase(),
+      order: post.postIndex,
     });
-    debug.push({ line: post.author, note: `votes ${action.target}` });
+    debug.push({ line: post.author, note: `votes ${action.target} (post #${post.postIndex})` });
   }
 
   const tallies = buildTallies(currentVotes);
@@ -313,29 +401,45 @@ function parseForumThread(rawText, fallbackRoster) {
   const votingAuthorsLower = Array.from(currentVotes.keys());
   const notVoting = roster.filter((name) => {
     const nameLower = name.toLowerCase();
-    return !votingAuthorsLower.some(
-      (a) => a.startsWith(nameLower) || nameLower.startsWith(a)
-    );
+    return !votingAuthorsLower.some((a) => a.startsWith(nameLower) || nameLower.startsWith(a));
   });
 
   if (majority === null && roster.length) majority = Math.floor(roster.length / 2) + 1;
 
-  return { day: dayNumber, tallies, notVoting, majority, roster, debug };
+  return {
+    day: dayNumber,
+    requestedDay: targetDay,
+    dayFound,
+    tallies,
+    notVoting,
+    majority,
+    roster,
+    debug,
+    showPostNumbers: true,
+  };
 }
 
 // --- Entry points ------------------------------------------------------------
 
-function parseVotes(logText, playersText) {
+function parseVotes(logText, playersText, opts = {}) {
   const fallbackRoster = parsePlayerList(playersText);
+  const aliasMap = parseAliasMap(opts.aliasText);
+  const targetDay = opts.day != null && opts.day !== "" ? parseInt(opts.day, 10) : null;
+
   if (looksLikeForumThread(logText)) {
-    return parseForumThread(logText, fallbackRoster);
+    return parseForumThread(logText, { fallbackRoster, targetDay: Number.isNaN(targetDay) ? null : targetDay, aliasMap });
   }
-  return parseSimpleLog(logText, fallbackRoster);
+  return parseSimpleLog(logText, fallbackRoster, aliasMap);
 }
 
-function buildMessage(dayLabelInput, result) {
-  const { tallies, notVoting, majority, roster, day } = result;
-  const dayLabel = dayLabelInput || (day ? `Day ${day}` : "");
+function buildMessage(result) {
+  const { tallies, notVoting, majority, roster, day, requestedDay, dayFound, showPostNumbers } = result;
+
+  if (requestedDay != null && !dayFound) {
+    return `⚠️ Day ${requestedDay} wasn't found in the pasted thread — nothing to show. Check the day number or paste more of the thread.`;
+  }
+
+  const dayLabel = day ? `Day ${day}` : "";
   const out = [];
 
   out.push(`🗳️ Vote Count${dayLabel ? " — " + dayLabel : ""}`);
@@ -345,7 +449,10 @@ function buildMessage(dayLabelInput, result) {
     out.push("No votes cast yet.");
   } else {
     for (const t of tallies) {
-      out.push(`${t.display} (${t.voters.length}): ${t.voters.join(", ")}`);
+      const voterText = showPostNumbers
+        ? t.voterEntries.map((v) => `${v.name} (#${v.order})`).join(", ")
+        : t.voters.join(", ");
+      out.push(`${t.display}(${t.voters.length}): ${voterText}`);
     }
   }
 
@@ -369,9 +476,12 @@ function buildMessage(dayLabelInput, result) {
 // --- Wiring ---------------------------------------------------------------
 
 if (typeof document !== "undefined") {
+  const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
+
   const logInput = document.getElementById("log-input");
-  const dayLabelInput = document.getElementById("day-label");
+  const dayInput = document.getElementById("day-input");
   const playersInput = document.getElementById("players-input");
+  const aliasInput = document.getElementById("alias-input");
   const parseBtn = document.getElementById("parse-btn");
   const copyBtn = document.getElementById("copy-btn");
   const resultsSection = document.getElementById("results");
@@ -379,9 +489,25 @@ if (typeof document !== "undefined") {
   const debugList = document.getElementById("debug-list");
   const detectedInfo = document.getElementById("detected-info");
 
+  try {
+    const savedAliases = window.localStorage.getItem(ALIAS_STORAGE_KEY);
+    if (savedAliases) aliasInput.value = savedAliases;
+  } catch (e) {
+    // localStorage unavailable (e.g. private browsing) — just skip persistence.
+  }
+
   const render = () => {
-    const result = parseVotes(logInput.value, playersInput.value);
-    const message = buildMessage(dayLabelInput.value.trim(), result);
+    try {
+      window.localStorage.setItem(ALIAS_STORAGE_KEY, aliasInput.value);
+    } catch (e) {
+      // ignore
+    }
+
+    const result = parseVotes(logInput.value, playersInput.value, {
+      day: dayInput.value.trim(),
+      aliasText: aliasInput.value,
+    });
+    const message = buildMessage(result);
 
     output.textContent = message;
 
@@ -427,5 +553,5 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseVotes, buildMessage, normalizeTarget };
+  module.exports = { parseVotes, buildMessage, normalizeTarget, parseAliasMap };
 }

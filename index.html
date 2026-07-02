@@ -45,14 +45,23 @@ Not me! VOTE: Bob"></textarea>
 
         <div class="options">
           <div class="field">
-            <label for="day-label">Day label override (optional)</label>
-            <input id="day-label" type="text" placeholder="auto-detected" />
+            <label for="day-input">Day # (optional)</label>
+            <input id="day-input" type="number" min="1" placeholder="latest day" />
           </div>
           <div class="field">
             <label for="players-input">Player list fallback (optional, comma-separated)</label>
             <input id="players-input" type="text" placeholder="used only if no roster is detected" />
           </div>
         </div>
+
+        <label for="alias-input">Known aliases (optional)</label>
+        <p class="hint">
+          One player per line: <code>RosterName: nickname1, nickname2</code>. Use this when someone
+          votes using a name unrelated to their roster/forum name (e.g. "Axatar" also goes by "Joe").
+          Saved in this browser so you don't have to re-enter it every game.
+        </p>
+        <textarea id="alias-input" class="alias-textarea" placeholder="Axatar: Joe, Joe Boy
+Camborghini: Jerry"></textarea>
 
         <button id="parse-btn">Count Votes</button>
       </section>

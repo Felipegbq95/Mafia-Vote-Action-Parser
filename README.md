@@ -28,15 +28,34 @@ are excluded from voting entirely. Forum usernames that differ from the
 shorter names players vote with (e.g. a poster called `Blottica` voting as
 "Blott") are matched against the detected roster.
 
+A player who re-votes without ever typing `UNVOTE` is handled the same as an
+explicit unvote-then-vote — whatever their latest message says wins.
+
+The output format matches how game masters usually post it by hand:
+`Name(count): voter1 (#12), voter2 (#47)`, where `#N` is that voter's
+position across the *entire pasted thread* (so it only lines up with a game
+master's real numbering if you paste the whole thread from post #1 each
+time). Players are ranked by vote count, and **ties are broken by whoever
+reached that count first** (standard mafia tie rules), not alphabetically.
+
 A plain `Username: message` log (one message per line) also works if you'd
 rather not paste a forum export — see the in-app placeholder for the exact
-format.
+format. Post numbers aren't shown for that format since there's no real
+post ordering to reference.
 
 Optional fields:
 
-- **Day label override** — use if you want a specific label instead of the
-  auto-detected day number
-- **Player list fallback** — only used if no roster could be auto-detected
+- **Day #** — tally a specific day instead of the latest one. Useful if
+  you're pasting the whole thread but want an earlier day's result, or to
+  double check a day before it's over. Leave blank to auto-use the most
+  recent `Day N Start`. If the requested day isn't found in what you pasted,
+  you'll get a warning instead of a silently empty/wrong tally.
+- **Player list fallback** — only used if no roster could be auto-detected.
+- **Known aliases** — one player per line as `RosterName: nickname1,
+  nickname2`, for players who go by a name unrelated to their roster/forum
+  name (e.g. "Axatar" also goes by "Joe"). Checked before any fuzzy
+  name-guessing. Saved in your browser (`localStorage`) so a recurring group
+  doesn't have to re-enter it every game.
 
 Click **Count Votes** to generate the tally, then **Copy message** to copy the
 formatted result straight to your clipboard for posting.
@@ -46,6 +65,9 @@ formatted result straight to your clipboard for posting.
 - Quote-stripping is heuristic, not a full BBCode parser — reused quote
   markup that doesn't cleanly resolve is handled by keeping only the last
   paragraph of the post, which covers the common cases but isn't foolproof.
+- Post numbers are a locally-computed count of posts in what you pasted, not
+  the forum's true internal reply IDs (which aren't present in the
+  text-only export) — accurate only if you paste from post #1 onward.
 - Special vote-weight abilities (e.g. a "double vote" role) aren't detected
   automatically — each player's tally still counts as one vote.
 - Non-lynch votes using the same `VOTE:` syntax for unrelated day-one events

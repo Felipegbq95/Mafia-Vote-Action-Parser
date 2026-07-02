@@ -70,10 +70,26 @@ test("majority and not-voting are computed from the roster", () => {
 test("buildMessage flags a player who reached majority", () => {
   const log = ["Alice: VOTE: Bob", "Carol: VOTE: Bob", "Dave: VOTE: Bob"].join("\n");
   const result = parseVotes(log, "Alice, Bob, Carol, Dave, Eve");
-  const message = buildMessage("Day 1", result);
-  assert.match(message, /Bob \(3\): Alice, Carol, Dave/);
+  const message = buildMessage(result);
+  assert.match(message, /Bob\(3\): Alice, Carol, Dave/);
   assert.match(message, /Majority: 3 votes needed\./);
   assert.match(message, /⚠️ Bob has reached majority!/);
+});
+
+test("re-voting without an explicit UNVOTE still overrides the previous vote", () => {
+  const log = ["Alice: VOTE: Bob", "Alice: actually VOTE: Carol"].join("\n");
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Carol");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
+test("tied vote counts are ordered by who reached that count first, not alphabetically", () => {
+  // Bob reaches 2 votes before Alice does, even though "Alice" sorts first.
+  const log = ["Carol: VOTE: Bob", "Dave: VOTE: Bob", "Eve: VOTE: Alice", "Frank: VOTE: Alice"].join("\n");
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies[0].display, "Bob");
+  assert.equal(result.tallies[1].display, "Alice");
 });
 
 test("vote with no target name is ignored", () => {
@@ -153,6 +169,55 @@ test("forum format: not-voting uses fuzzy match between full forum name and shor
   assert.deepEqual(result.tallies[0].voters, ["Blottica"]);
   // "Blott" is covered by Blottica's vote (fuzzy match); "Zorf" hasn't voted himself.
   assert.deepEqual(result.notVoting, ["Zorf"]);
+});
+
+test("forum format: requesting a specific day only tallies that day, even if the thread continues", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob") +
+    forumPost("Bobsal", "May 2, 2026, 1:00:00 PM", "Day 2 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Bob", "May 2, 2026, 1:05:00 PM", "vote alice");
+
+  const result = parseVotes(log, "", { day: 1 });
+  assert.equal(result.day, 1);
+  assert.equal(result.dayFound, true);
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
+test("forum format: requesting a day that isn't in the pasted thread is reported, not silently wrong", () => {
+  const log = forumPost(
+    "Bobsal",
+    "May 1, 2026, 1:00:00 PM",
+    "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority."
+  );
+
+  const result = parseVotes(log, "", { day: 5 });
+  assert.equal(result.dayFound, false);
+  const message = buildMessage(result);
+  assert.match(message, /Day 5 wasn't found/);
+});
+
+test("forum format: output includes post numbers matching the thread position", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob");
+
+  const result = parseVotes(log, "");
+  const message = buildMessage(result);
+  // Alice's post is the 2nd post in the thread.
+  assert.match(message, /Bob\(1\): Alice \(#2\)/);
+});
+
+test("forum format: alias whitelist resolves nicknames unrelated to the roster name", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Axatar\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Bob", "May 1, 2026, 1:05:00 PM", "vote joe");
+
+  const result = parseVotes(log, "", { aliasText: "Axatar: Joe, Joe Boy" });
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Axatar");
 });
 
 test("forum format: real game excerpt (Day 10) matches the game master's own final tally", () => {
