@@ -46,10 +46,11 @@ function parseAliasMap(text) {
 // name. Tries progressively shorter word-prefixes against the roster and the
 // alias map first (exact, case-insensitive, longest phrase wins), then falls
 // back to a fuzzy prefix match (handles nicknames like "blotty" for roster
-// entry "Blott"). Once a roster is known, a word that matches none of that
-// is treated as "not actually a vote" (e.g. "I might vote unless someone
-// convinces me") rather than invented as a target out of a stray word --
-// only when no roster is known yet at all do we guess the first word.
+// entry "Blott"). If nothing matches, the raw typed word is used as-is
+// (e.g. a typo like "blitt" shows up as its own tally entry) rather than
+// being silently dropped -- deliberately visible over silently "clever",
+// since a plain-text paste has no reliable way to tell a genuine (possibly
+// misspelled) vote apart from a stray, unrelated use of the word "vote".
 function extractTarget(text, roster, aliasMap) {
   let candidate = text.replace(/^[\s:]*(?:for\s+)?/i, "");
   const stopMatch = candidate.match(/^([^.!?;\n]*)/);
@@ -78,7 +79,6 @@ function extractTarget(text, roster, aliasMap) {
       (r) => r.length >= 3 && w0.length >= 3 && (w0.startsWith(r) || r.startsWith(w0))
     );
     if (fuzzyIdx !== -1) return roster[fuzzyIdx];
-    return "";
   }
 
   return words[0];
@@ -186,11 +186,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
     }
 
     if (!action.target) {
-      debug.push({
-        line,
-        note: `${author} used the word "vote" but it didn't match a known player — ignored, previous vote (if any) stands`,
-        ignored: true,
-      });
+      debug.push({ line, note: `${author} used the word "vote" but nothing followed it — ignored`, ignored: true });
       continue;
     }
 
@@ -405,7 +401,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     if (!action.target) {
       debug.push({
         line: post.author,
-        note: `used the word "vote" but it didn't match a known player (post #${post.postIndex}) — ignored, previous vote (if any) stands`,
+        note: `used the word "vote" but nothing followed it (post #${post.postIndex}) — ignored`,
         ignored: true,
       });
       continue;

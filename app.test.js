@@ -159,23 +159,30 @@ test("forum format: a later Day N Start resets the tally", () => {
   assert.deepEqual(result.tallies[0].voters, ["Bob"]);
 });
 
-test("forum format: a casual 'vote' that matches no known player doesn't override an earlier real vote", () => {
-  // Regression test: "I might just vote unless someone convinces me" used to
-  // resolve to a bogus target "unless" and silently wipe out Nightexe's
-  // earlier, real vote for Blott.
+test("forum format: an unresolved vote target is shown raw instead of silently dropped (e.g. a typo)", () => {
   const log =
-    forumPost("Bobsal", "June 17, 2026, 8:56:56 PM", "Day 10 Start\n\nAlive Player List\n\n1. Blott\n2. Zorf\n\nWith 2 players alive it will take 2 to achieve majority.") +
-    forumPost("Nightexe", "June 17, 2026, 11:20:32 PM", "vote: blott") +
-    forumPost("Nightexe", "June 17, 2026, 11:35:00 PM", "idk man I might just vote unless someone gives me a better reason");
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Blott\n2. Zorf\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote:blitt");
+
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "blitt");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
+test("forum format: a 'vote' with nothing after it is ignored rather than treated as a target", () => {
+  const log =
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Blott\n2. Zorf\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote: blott") +
+    forumPost("Alice", "May 1, 2026, 1:10:00 PM", "hmm let me think, I vote");
 
   const result = parseVotes(log, "");
   assert.equal(result.tallies.length, 1);
   assert.equal(result.tallies[0].display, "Blott");
-  assert.deepEqual(result.tallies[0].voters, ["Nightexe"]);
 
-  const ignoredNote = result.debug.find((d) => d.ignored && d.line === "Nightexe");
-  assert.ok(ignoredNote, "the unresolved 'vote' should show up in the debug log");
-  assert.match(ignoredNote.note, /didn't match a known player/);
+  const ignoredNote = result.debug.find((d) => d.ignored && d.line === "Alice");
+  assert.ok(ignoredNote, "the empty 'vote' should show up in the debug log");
+  assert.match(ignoredNote.note, /nothing followed it/);
 });
 
 test("forum format: not-voting uses fuzzy match between full forum name and short roster name", () => {
