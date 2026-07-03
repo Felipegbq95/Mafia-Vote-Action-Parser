@@ -800,15 +800,24 @@ function extractMarkedText(root) {
 const STRIP_TAGS = ["img", "video", "audio", "picture", "source", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link", "track"];
 const BLOCK_TAGS = new Set(["div", "p", "li", "tr", "blockquote", "h1", "h2", "h3", "h4"]);
 
-// A void/self-closing element (no closing tag, e.g. <img>, <source>) vs. a
-// container that wraps content up to a matching close tag (e.g. <video>...
-// </video>). Browsers start fetching an <img src="..."> the instant they
-// parse it into *any* element, even a detached, never-rendered one — so
-// removing the node afterward is too late to stop the network request.
-// Stripping the tags out of the raw string first, before anything ever
-// parses it, avoids that fetch entirely.
-const VOID_STRIP_TAGS = ["img", "source", "track"];
-const CONTAINER_STRIP_TAGS = ["video", "audio", "picture", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link"];
+// Browsers start fetching an <img src="..."> (or an <iframe src>, <video
+// src>, etc.) the instant the tag is parsed into *any* element, even one
+// that is detached and never rendered -- so removing the node afterward is
+// too late to stop the network request. Rather than string-searching for
+// each tag's matching close tag (which, on a large paste with an
+// unmatched/malformed opening tag -- a stray <object>/<embed> ad leftover
+// is common in real forum exports -- degrades to quadratic time and is
+// exactly the kind of thing that can make a big paste hang for a minute),
+// this just strips every attribute off the *opening* tag in one linear
+// pass. That's enough on its own: no src/srcset/data/poster attribute
+// survives to trigger a fetch, and the DOM walk below already skips these
+// tags (and everything inside them) entirely regardless of whether their
+// closing tag -- or any content in between -- is still present in the
+// string.
+function neutralizeFetchTags(html) {
+  const pattern = new RegExp(`<(${STRIP_TAGS.join("|")})\\b[^>]*>`, "gi");
+  return html.replace(pattern, "<$1>");
+}
 
 function isBoldElement(node) {
   const tag = node.tagName.toLowerCase();
@@ -824,14 +833,7 @@ function isBoldElement(node) {
 // from pasted HTML, for insertion into the live contenteditable in place of
 // the original markup. See the block comment above for why.
 function buildPasteFragment(html) {
-  let cleaned = html;
-  for (const tag of VOID_STRIP_TAGS) {
-    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>`, "gi"), "");
-  }
-  for (const tag of CONTAINER_STRIP_TAGS) {
-    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi"), "");
-    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*\\/>`, "gi"), "");
-  }
+  const cleaned = neutralizeFetchTags(html);
 
   const container = document.createElement("div");
   container.innerHTML = cleaned;
