@@ -964,14 +964,20 @@ function initChoiceGroup(container, { defaultValue = "", allowDeselect = false }
   return { get: () => value };
 }
 
+// A regular game group's roster/nicknames rarely change game to game, so
+// these are edited here directly instead of being re-typed into the UI
+// every time. Both only kick in when the paste itself doesn't already
+// supply the info: FALLBACK_PLAYERS is only used when no "Alive Player
+// List" could be auto-detected, and KNOWN_ALIASES is only consulted for a
+// name that doesn't already exactly/fuzzily match the detected roster.
+const FALLBACK_PLAYERS = ""; // comma-separated, e.g. "Alice, Bob, Carol"
+const KNOWN_ALIASES = ""; // one player per line: "RosterName: nickname1, nickname2"
+
 if (typeof document !== "undefined") {
-  const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
   const DAY_ENDS_AT_STORAGE_KEY = "mafia-vote-counter-day-ends-at";
 
   const logInput = document.getElementById("log-input");
   const dayInput = document.getElementById("day-input");
-  const playersInput = document.getElementById("players-input");
-  const aliasInput = document.getElementById("alias-input");
   const dayEndsAtInput = document.getElementById("day-ends-at-input");
   const parseBtn = document.getElementById("parse-btn");
   const copyBtn = document.getElementById("copy-btn");
@@ -991,8 +997,6 @@ if (typeof document !== "undefined") {
   const dayEndsOnGroup = initChoiceGroup(document.getElementById("day-ends-on-group"), { allowDeselect: true });
 
   try {
-    const savedAliases = window.localStorage.getItem(ALIAS_STORAGE_KEY);
-    if (savedAliases) aliasInput.value = savedAliases;
     const savedDayEndsAt = window.localStorage.getItem(DAY_ENDS_AT_STORAGE_KEY);
     if (savedDayEndsAt) dayEndsAtInput.value = savedDayEndsAt;
   } catch (e) {
@@ -1024,16 +1028,15 @@ if (typeof document !== "undefined") {
 
   const render = () => {
     try {
-      window.localStorage.setItem(ALIAS_STORAGE_KEY, aliasInput.value);
       window.localStorage.setItem(DAY_ENDS_AT_STORAGE_KEY, dayEndsAtInput.value);
     } catch (e) {
       // ignore
     }
 
     const rawText = extractMarkedText(logInput);
-    const result = parseVotes(rawText, playersInput.value, {
+    const result = parseVotes(rawText, FALLBACK_PLAYERS, {
       day: dayInput.value.trim(),
-      aliasText: aliasInput.value,
+      aliasText: KNOWN_ALIASES,
     });
     const message = buildMessage(result, {
       mode: modeGroup.get(),

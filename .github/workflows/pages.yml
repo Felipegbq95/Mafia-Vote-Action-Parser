@@ -31,7 +31,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site
-          cp index.html style.css app.js _site/
+          cp index.html style.css app.js favicon.svg favicon.ico favicon-16.png favicon-32.png apple-touch-icon.png _site/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

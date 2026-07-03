@@ -13,7 +13,8 @@
   --amber-bg: rgba(234, 181, 78, 0.08);
   --green: #4caf7d;
   --green-bg: rgba(76, 175, 125, 0.12);
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Lexend", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -72,9 +73,10 @@ header {
 
 header h1 {
   margin: 0;
+  font-family: var(--font-heading);
   font-size: 1.55rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
@@ -123,10 +125,6 @@ label {
   font-weight: 600;
   font-size: 0.92rem;
   margin-bottom: 8px;
-}
-
-.section-label {
-  margin-top: 32px;
 }
 
 .hint {
@@ -227,6 +225,30 @@ textarea {
   margin-top: 0;
 }
 
+/* A fieldset/legend gives the "Options" block a bordered box with the
+   label cut into the top border, natively and accessibly, instead of a
+   hand-rolled border+floating-label hack. */
+.options-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 20px 0 0;
+  padding: 4px 20px 20px;
+}
+
+.options-fieldset legend {
+  padding: 0 8px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.options-fieldset > *:first-child {
+  margin-top: 0;
+}
+
 input[type="text"],
 input[type="number"] {
   width: 100%;
@@ -237,10 +259,6 @@ input[type="number"] {
   font-size: 0.9rem;
   padding: 10px 12px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.alias-textarea {
-  min-height: 80px;
 }
 
 textarea:focus,
@@ -327,6 +345,7 @@ button:hover {
 
 .results-header h2 {
   margin: 0;
+  font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 600;
 }
@@ -408,6 +427,7 @@ button:hover {
 
 #unresolved-section h3 {
   margin: 0 0 4px;
+  font-family: var(--font-heading);
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--amber);

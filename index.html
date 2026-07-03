@@ -4,10 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mafia Vote Counter</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2" />
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=2" />
+  <link rel="alternate icon" href="favicon.ico?v=2" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -65,52 +69,41 @@ Post by: Carol on May 31, 2026, 5:20:00 PM
 Not me! VOTE: Bob"
         ></div>
 
-        <div class="field-grid">
+        <fieldset class="options-fieldset">
+          <legend>Options</legend>
+
           <div class="field">
             <label for="day-input">Day # (optional)</label>
             <input id="day-input" type="number" min="1" placeholder="latest day" />
           </div>
-          <div class="field">
-            <label for="players-input">Player list fallback (optional, comma-separated)</label>
-            <input id="players-input" type="text" placeholder="used only if no roster is detected" />
-          </div>
-        </div>
 
-        <div class="field">
-          <label id="mode-group-label">Vote count type</label>
-          <div class="choice-group" id="mode-group" role="radiogroup" aria-labelledby="mode-group-label">
-            <button type="button" class="choice" data-value="midday" aria-checked="true" role="radio">Mid-day check-in</button>
-            <button type="button" class="choice" data-value="final" aria-checked="false" role="radio">End of day (final)</button>
-          </div>
-        </div>
-
-        <div class="field-grid">
           <div class="field">
-            <label id="day-ends-on-group-label">Day ends on (optional)</label>
-            <div class="choice-group day-picker" id="day-ends-on-group" role="radiogroup" aria-labelledby="day-ends-on-group-label">
-              <button type="button" class="choice" data-value="Sunday" aria-checked="false" role="radio">Su</button>
-              <button type="button" class="choice" data-value="Monday" aria-checked="false" role="radio">Mo</button>
-              <button type="button" class="choice" data-value="Tuesday" aria-checked="false" role="radio">Tu</button>
-              <button type="button" class="choice" data-value="Wednesday" aria-checked="false" role="radio">We</button>
-              <button type="button" class="choice" data-value="Thursday" aria-checked="false" role="radio">Th</button>
-              <button type="button" class="choice" data-value="Friday" aria-checked="false" role="radio">Fr</button>
-              <button type="button" class="choice" data-value="Saturday" aria-checked="false" role="radio">Sa</button>
+            <label id="mode-group-label">Vote count type</label>
+            <div class="choice-group" id="mode-group" role="radiogroup" aria-labelledby="mode-group-label">
+              <button type="button" class="choice" data-value="midday" aria-checked="true" role="radio">Mid-day check-in</button>
+              <button type="button" class="choice" data-value="final" aria-checked="false" role="radio">End of day (final)</button>
             </div>
           </div>
-          <div class="field">
-            <label for="day-ends-at-input">Day ends at (optional)</label>
-            <input id="day-ends-at-input" type="text" placeholder="e.g. 8pm eastern" />
-          </div>
-        </div>
 
-        <label for="alias-input" class="section-label">Known aliases (optional)</label>
-        <p class="hint">
-          One player per line: <code>RosterName: nickname1, nickname2</code>. Use this when someone
-          votes using a name unrelated to their roster/forum name (e.g. "Axatar" also goes by "Joe").
-          Saved in this browser so you don't have to re-enter it every game.
-        </p>
-        <textarea id="alias-input" class="alias-textarea" placeholder="Axatar: Joe, Joe Boy
-Camborghini: Jerry"></textarea>
+          <div class="field-grid">
+            <div class="field">
+              <label id="day-ends-on-group-label">Day ends on (optional)</label>
+              <div class="choice-group day-picker" id="day-ends-on-group" role="radiogroup" aria-labelledby="day-ends-on-group-label">
+                <button type="button" class="choice" data-value="Sunday" aria-checked="false" role="radio">Su</button>
+                <button type="button" class="choice" data-value="Monday" aria-checked="false" role="radio">Mo</button>
+                <button type="button" class="choice" data-value="Tuesday" aria-checked="false" role="radio">Tu</button>
+                <button type="button" class="choice" data-value="Wednesday" aria-checked="false" role="radio">We</button>
+                <button type="button" class="choice" data-value="Thursday" aria-checked="false" role="radio">Th</button>
+                <button type="button" class="choice" data-value="Friday" aria-checked="false" role="radio">Fr</button>
+                <button type="button" class="choice" data-value="Saturday" aria-checked="false" role="radio">Sa</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="day-ends-at-input">Day ends at (optional)</label>
+              <input id="day-ends-at-input" type="text" placeholder="e.g. 8pm eastern" />
+            </div>
+          </div>
+        </fieldset>
 
         <button id="parse-btn">Count Votes</button>
       </section>

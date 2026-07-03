@@ -92,13 +92,15 @@ Optional fields:
   double check a day before it's over. Leave blank to auto-use the most
   recent `Day N Start`. If the requested day isn't found in what you pasted,
   you'll get a warning instead of a silently empty/wrong tally.
-- **Player list fallback**: only used if no roster could be auto-detected.
 - **Vote count type / Day ends on / Day ends at**: see output format above.
-- **Known aliases**: one player per line as `RosterName: nickname1,
-  nickname2`, for players who go by a name unrelated to their roster/forum
-  name (e.g. "Axatar" also goes by "Joe"). Checked before any fuzzy
-  name-guessing. Saved in your browser (`localStorage`) so a recurring group
-  doesn't have to re-enter it every game.
+
+The player list fallback and known aliases (a name unrelated to a player's
+roster/forum name, e.g. "Axatar" also goes by "Joe") aren't UI fields since
+a regular game group's roster rarely changes: set `FALLBACK_PLAYERS` and
+`KNOWN_ALIASES` directly in `app.js` instead. `FALLBACK_PLAYERS` is only
+used if no roster could be auto-detected from the paste; `KNOWN_ALIASES`
+(one player per line, `RosterName: nickname1, nickname2`) is checked before
+any fuzzy name-guessing.
 
 Click **Count Votes** to generate the tally, then **Copy message** to copy the
 formatted result straight to your clipboard for posting.
