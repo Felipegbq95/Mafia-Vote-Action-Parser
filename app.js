@@ -620,6 +620,48 @@ function extractMarkedText(root) {
   return text;
 }
 
+// A real forum "print" page is riddled with embedded images and animated
+// gifs (screenshots, memes, avatars). Left to its default behavior, pasting
+// into a contenteditable hands the browser the full rich clipboard payload
+// and it inserts real <img>/<video> nodes for every one of them, which then
+// all start fetching and decoding at once — on a thread with dozens of them
+// (a real 2000+ post game thread easily has this many) that's enough to
+// freeze the tab well before Parse is ever clicked. None of that media is
+// needed for parsing, so this strips it out of the pasted HTML before it's
+// inserted, keeping only text and the formatting tags bold-detection cares
+// about.
+const STRIP_TAGS = ["img", "video", "audio", "picture", "source", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link", "track"];
+
+// A void/self-closing element (no closing tag, e.g. <img>, <source>) vs. a
+// container that wraps content up to a matching close tag (e.g. <video>...
+// </video>). Browsers start fetching an <img src="..."> the instant they
+// parse it into *any* element, even a detached, never-rendered one — so
+// removing the node afterward (in the DOM pass below) is too late to stop
+// the network request. Stripping the tags out of the raw string first,
+// before anything ever parses it, avoids that fetch entirely.
+const VOID_STRIP_TAGS = ["img", "source", "track"];
+const CONTAINER_STRIP_TAGS = ["video", "audio", "picture", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link"];
+
+function sanitizePastedHtml(html) {
+  let cleaned = html;
+  for (const tag of VOID_STRIP_TAGS) {
+    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>`, "gi"), "");
+  }
+  for (const tag of CONTAINER_STRIP_TAGS) {
+    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi"), "");
+    cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*\\/>`, "gi"), "");
+  }
+
+  // Second pass over the (now much lighter) DOM tree in case anything
+  // malformed slipped past the string-level strip above.
+  const container = document.createElement("div");
+  container.innerHTML = cleaned;
+  for (const tag of STRIP_TAGS) {
+    for (const el of Array.from(container.querySelectorAll(tag))) el.remove();
+  }
+  return container.innerHTML;
+}
+
 if (typeof document !== "undefined") {
   const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
 
@@ -642,6 +684,17 @@ if (typeof document !== "undefined") {
   } catch (e) {
     // localStorage unavailable (e.g. private browsing) — just skip persistence.
   }
+
+  logInput.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const html = event.clipboardData && event.clipboardData.getData("text/html");
+    if (html) {
+      document.execCommand("insertHTML", false, sanitizePastedHtml(html));
+      return;
+    }
+    const text = (event.clipboardData && event.clipboardData.getData("text/plain")) || "";
+    document.execCommand("insertText", false, text);
+  });
 
   const render = () => {
     try {

@@ -10,8 +10,11 @@ server, e.g. `npx serve .`). Paste your forum's **"Print"** thread view
 (the format with `Title:` / `Post by: Name on <date>` repeated per post)
 into the game thread box. Unlike a plain `<textarea>`, that box keeps rich
 formatting when you paste — bold, links, colors — because it's a
-contenteditable element, not a plain text field. From your game master's own
-posts we auto-detect:
+contenteditable element, not a plain text field. Images and gifs embedded in
+the posts (avatars, memes, screenshots) are stripped out of the paste before
+they ever touch the page, so a real, long-running game thread full of them
+pastes in instantly instead of freezing the tab while dozens of images try to
+load. From your game master's own posts we auto-detect:
 
 - the current day (from the most recent `Day N Start`, so pasting the whole
   thread from game start each time works fine — only the latest day is
