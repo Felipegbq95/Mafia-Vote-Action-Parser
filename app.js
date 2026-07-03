@@ -1028,7 +1028,13 @@ if (typeof document !== "undefined") {
       if (result.day) bits.push(`Day ${result.day}`);
       bits.push(`${result.roster.length || "?"} player${result.roster.length === 1 ? "" : "s"}`);
       if (result.majority) bits.push(`majority ${result.majority}`);
-      detectedInfo.textContent = "Detected: " + bits.join(" · ");
+      detectedInfo.innerHTML = "";
+      for (const bit of bits) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = bit;
+        detectedInfo.appendChild(chip);
+      }
     }
 
     debugList.innerHTML = "";
