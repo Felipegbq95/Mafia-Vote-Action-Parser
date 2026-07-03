@@ -9,6 +9,14 @@ const KEYWORD_RE = /\b(unvote|vote)\b/gi;
 const BOLD_START = "\u0001";
 const BOLD_END = "\u0002";
 
+// Sentinels marking a real DOM <blockquote> (SMF's rendering of [quote]
+// BBCode), inserted by the same DOM->text walk. Unlike the fuzzy "Quote
+// from: X on Y" text-matching stripQuotes falls back to, these come from
+// the browser's own parsed structure, so a quoted line can be identified
+// with certainty instead of guessed at.
+const QUOTE_START = "\u0003";
+const QUOTE_END = "\u0004";
+
 function isBoldAt(str, index) {
   let depth = 0;
   for (let i = 0; i < index; i++) {
@@ -39,21 +47,32 @@ function isBoldAt(str, index) {
 function splitMarkedText(marked) {
   let clean = "";
   const bold = [];
-  let depth = 0;
+  const quoted = [];
+  let boldDepth = 0;
+  let quoteDepth = 0;
   for (let i = 0; i < marked.length; i++) {
     const ch = marked[i];
     if (ch === BOLD_START) {
-      depth++;
+      boldDepth++;
       continue;
     }
     if (ch === BOLD_END) {
-      depth = Math.max(0, depth - 1);
+      boldDepth = Math.max(0, boldDepth - 1);
+      continue;
+    }
+    if (ch === QUOTE_START) {
+      quoteDepth++;
+      continue;
+    }
+    if (ch === QUOTE_END) {
+      quoteDepth = Math.max(0, quoteDepth - 1);
       continue;
     }
     clean += ch;
-    bold.push(depth > 0);
+    bold.push(boldDepth > 0);
+    quoted.push(quoteDepth > 0);
   }
-  return { clean, bold };
+  return { clean, bold, quoted };
 }
 
 function stripSentinels(raw) {
@@ -407,25 +426,41 @@ function joinBoldLines(boldLines) {
 }
 
 // Quoted text (someone's earlier vote being re-displayed) must not be
-// re-counted as the quoting author's new vote. We resolve each
+// re-counted as the quoting author's new vote. When the paste carries real
+// DOM structure (a <blockquote> the browser itself rendered for a [quote]
+// BBCode block -- see extractMarkedText/buildPasteFragment), contentQuoted
+// says with certainty which characters came from inside one, and any line
+// made up entirely of such characters is dropped outright, no guessing
+// needed. Only when a post has no such DOM info at all (plain-text paste,
+// or the unit tests) do we fall back to the older heuristic: resolve each
 // "Quote from: X on Y" block against X's actual earlier post (looked up by
 // author+timestamp) and walk the quoted lines forward, dropping anything
-// that matches. If a quote's author can't be resolved (the plain-text export
-// sometimes mangles colored usernames into stray "<font" fragments), we fall
-// back to keeping only the last blank-line-separated paragraph of the post,
-// since a post's genuinely new content is always at the end.
+// that matches; if a quote's author can't be resolved (the plain-text
+// export sometimes mangles colored usernames into stray "<font"
+// fragments), keep only the last blank-line-separated paragraph of the
+// post, since a post's genuinely new content is always at the end.
 //
-// contentBold is a boolean array the same length as `content` (see
-// splitMarkedText); the function returns the surviving text's own boldness
-// array alongside it, kept in lockstep through every line kept/dropped.
-function stripQuotes(content, contentBold, postMap) {
+// contentBold/contentQuoted are boolean arrays the same length as `content`
+// (see splitMarkedText); the function returns the surviving text's own
+// boldness array alongside it, kept in lockstep through every line
+// kept/dropped.
+function stripQuotes(content, contentBold, contentQuoted, postMap) {
   const { lines, boldLines } = splitLinesWithBold(content, contentBold);
+  const { boldLines: quotedLines } = splitLinesWithBold(content, contentQuoted);
 
-  const hasUnresolvableQuote = lines.some((l) => {
-    const m = l.trim().match(QUOTE_HEADER_RE);
-    if (!m) return false;
-    return !postMap.has(`${stripSentinels(m[1])}|${stripSentinels(m[2])}`);
-  });
+  const hasDomQuoteInfo = contentQuoted.some(Boolean);
+  const isDomQuotedLine = (li) => {
+    const q = quotedLines[li];
+    return q.length > 0 && q.every(Boolean);
+  };
+
+  const hasUnresolvableQuote =
+    !hasDomQuoteInfo &&
+    lines.some((l) => {
+      const m = l.trim().match(QUOTE_HEADER_RE);
+      if (!m) return false;
+      return !postMap.has(`${stripSentinels(m[1])}|${stripSentinels(m[2])}`);
+    });
 
   if (hasUnresolvableQuote) {
     const paragraphs = [];
@@ -455,6 +490,8 @@ function stripQuotes(content, contentBold, postMap) {
   const stack = []; // { lines: string[], ptr: number }
 
   for (let li = 0; li < lines.length; li++) {
+    if (isDomQuotedLine(li)) continue;
+
     const rawLine = lines[li];
     const headerMatch = rawLine.trim().match(QUOTE_HEADER_RE);
     if (headerMatch) {
@@ -498,7 +535,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
   // bolded "Post by:" would otherwise make posts silently fail to be found
   // at all. `bold` is boldness-per-character of `cleanText`, sliced out
   // per-post below for the one thing that still needs it: vote keywords.
-  const { clean: cleanText, bold } = splitMarkedText(rawText);
+  const { clean: cleanText, bold, quoted } = splitMarkedText(rawText);
   const posts = splitForumPosts(cleanText);
   const postMap = new Map();
 
@@ -554,7 +591,8 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     if (targetDay != null && dayNumber !== targetDay) continue;
 
     const contentBold = bold.slice(post.contentAbsStart, post.contentAbsEnd);
-    const cleaned = stripQuotes(post.content, contentBold, postMap);
+    const contentQuoted = quoted.slice(post.contentAbsStart, post.contentAbsEnd);
+    const cleaned = stripQuotes(post.content, contentBold, contentQuoted, postMap);
     const action = findLastAction(cleaned.text, roster, aliasMap, requireBold, cleaned.bold);
     if (!action) continue;
 
@@ -711,10 +749,13 @@ function extractMarkedText(root) {
     return !Number.isNaN(n) && n >= 600;
   }
 
-  function walk(node, bold) {
+  function walk(node, bold, quoted) {
     if (node.nodeType === Node.TEXT_NODE) {
       if (!node.nodeValue) return;
-      text += bold ? BOLD_START + node.nodeValue + BOLD_END : node.nodeValue;
+      let chunk = node.nodeValue;
+      if (bold) chunk = BOLD_START + chunk + BOLD_END;
+      if (quoted) chunk = QUOTE_START + chunk + QUOTE_END;
+      text += chunk;
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -725,11 +766,12 @@ function extractMarkedText(root) {
       return;
     }
     const childBold = bold || isBoldNode(node);
-    for (const child of node.childNodes) walk(child, childBold);
+    const childQuoted = quoted || tag === "blockquote";
+    for (const child of node.childNodes) walk(child, childBold, childQuoted);
     if (BLOCK_TAGS.has(tag)) text += "\n";
   }
 
-  for (const child of root.childNodes) walk(child, false);
+  for (const child of root.childNodes) walk(child, false, false);
   return text;
 }
 
@@ -794,41 +836,58 @@ function buildPasteFragment(html) {
   const container = document.createElement("div");
   container.innerHTML = cleaned;
 
-  const runs = []; // { text, bold }
-  const pushText = (text, bold) => {
+  const runs = []; // { text, bold, quoted }
+  const pushText = (text, bold, quoted) => {
     if (!text) return;
     const last = runs[runs.length - 1];
-    if (last && last.bold === bold) last.text += text;
-    else runs.push({ text, bold });
+    if (last && last.bold === bold && last.quoted === quoted) last.text += text;
+    else runs.push({ text, bold, quoted });
   };
 
-  const walk = (node, bold) => {
+  const walk = (node, bold, quoted) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      pushText(node.nodeValue, bold);
+      pushText(node.nodeValue, bold, quoted);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const tag = node.tagName.toLowerCase();
     if (STRIP_TAGS.includes(tag)) return;
     if (tag === "br") {
-      pushText("\n", false);
+      pushText("\n", false, false);
       return;
     }
     const childBold = bold || isBoldElement(node);
-    for (const child of node.childNodes) walk(child, childBold);
-    if (BLOCK_TAGS.has(tag)) pushText("\n", false);
+    const childQuoted = quoted || tag === "blockquote";
+    for (const child of node.childNodes) walk(child, childBold, childQuoted);
+    if (BLOCK_TAGS.has(tag)) pushText("\n", false, false);
   };
 
-  for (const child of container.childNodes) walk(child, false);
+  for (const child of container.childNodes) walk(child, false, false);
 
+  // Consecutive quoted runs are grouped into a single real <blockquote>
+  // element (rather than one per run) so extractMarkedText's later re-walk
+  // sees one coherent quote block, matching how a genuine [quote] renders --
+  // and so a bold toggle *inside* a quote doesn't fragment it into multiple
+  // block-level elements, which would inject spurious newlines mid-quote.
   const fragment = document.createDocumentFragment();
+  let quoteEl = null;
   for (const run of runs) {
+    let target = fragment;
+    if (run.quoted) {
+      if (!quoteEl) {
+        quoteEl = document.createElement("blockquote");
+        fragment.appendChild(quoteEl);
+      }
+      target = quoteEl;
+    } else {
+      quoteEl = null;
+    }
     if (run.bold) {
       const b = document.createElement("b");
       b.appendChild(document.createTextNode(run.text));
-      fragment.appendChild(b);
+      target.appendChild(b);
     } else {
-      fragment.appendChild(document.createTextNode(run.text));
+      target.appendChild(document.createTextNode(run.text));
     }
   }
   return fragment;

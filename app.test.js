@@ -341,6 +341,58 @@ test("bold-only voting: a quoted post still resolves correctly when both posts h
   assert.deepEqual(result.tallies[0].voters, ["Alice"]);
 });
 
+// --- DOM-detected quote blocks ----------------------------------------------
+//
+// When the pasted content came from real HTML, a [quote] block renders as an
+// actual <blockquote> element, and the DOM walk marks its text with these
+// sentinels (see extractMarkedText/buildPasteFragment). That lets stripQuotes
+// drop exactly the quoted lines with certainty, instead of falling back to
+// fuzzy "Quote from: X on Y" text-matching against an earlier post.
+const Q = "";
+const QE = "";
+
+test("DOM-detected quote block is stripped precisely, without falling back to guessing", () => {
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 1:00:00 PM",
+      "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n3. Carol\n\nWith 3 players alive it will take 2 to achieve majority."
+    ) +
+    forumPost(
+      "Bob",
+      "May 1, 2026, 1:10:00 PM",
+      `Quote from: SomeoneNotInThread on Jan 1, 2020, 1:00:00 AM\n${Q}vote alice${QE}\n\nactually i vote carol`
+    );
+
+  // The quoted author/timestamp isn't in this thread at all, so the old
+  // heuristic (nothing to resolve it against) would have fallen back to
+  // "keep only the last paragraph" -- which happens to work here too, but
+  // only by luck of paragraph structure. The DOM markers make it exact: the
+  // quoted "vote alice" line is dropped because it's quoted, not because of
+  // its position in the post.
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Carol");
+  assert.deepEqual(result.tallies[0].voters, ["Bob"]);
+});
+
+test("bold-only voting: a bolded vote inside a DOM-detected quote block is stripped, not counted", () => {
+  const log =
+    boldForumHeaderPost(
+      "Bobsal",
+      "May 1, 2026, 1:00:00 PM",
+      "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority."
+    ) +
+    boldForumHeaderPost(
+      "Bob",
+      "May 1, 2026, 1:10:00 PM",
+      `Quote from: SomeoneNotInThread on Jan 1, 2020, 1:00:00 AM\n${Q}${B}vote alice${E}${QE}\n\nlol no thanks`
+    );
+
+  const result = parseVotes(log, "");
+  assert.equal(result.tallies.length, 0);
+});
+
 test("forum format: real game excerpt (Day 10) matches the game master's own final tally", () => {
   const fixture = fs.readFileSync(path.join(__dirname, "fixtures", "day10.txt"), "utf8");
   const result = parseVotes(fixture, "");
