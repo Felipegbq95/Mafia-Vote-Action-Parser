@@ -72,7 +72,7 @@ test("buildMessage flags a player who reached majority", () => {
   const result = parseVotes(log, "Alice, Bob, Carol, Dave, Eve");
   const message = buildMessage(result);
   assert.match(message, /Bob\(3\): Alice, Carol, Dave/);
-  assert.match(message, /⚠️ Bob has reached majority!/);
+  assert.match(message, /\[b\]\[color=red\]Bob has reached majority!\[\/color\]\[\/b\]/);
   assert.match(message, /With 5 players alive it will take 3 to achieve majority\./);
 });
 

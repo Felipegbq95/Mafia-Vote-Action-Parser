@@ -4,12 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mafia Vote Counter</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <header>
-      <h1>🕵️ Mafia Vote Counter</h1>
+      <h1>
+        <svg class="icon icon-header" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m9 12 2 2 4-4" />
+          <path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z" />
+          <path d="M22 19H2" />
+        </svg>
+        Mafia Vote Counter
+      </h1>
       <p class="subtitle">Paste your game log, get an instant vote tally &amp; a ready-to-post message.</p>
     </header>
 
@@ -20,8 +28,8 @@
           Paste your forum's <strong>"Print"</strong> thread view (the format with
           <code>Title:</code> / <code>Post by: Name on &lt;date&gt;</code> per post). We auto-detect the
           current day, the alive player roster, and the majority threshold from your game master's
-          posts, and tally each player's most recent <code>VOTE: Name</code> / <code>UNVOTE</code> —
-          quoted old votes are ignored. Plain <code>Username: message</code> logs also work. This box
+          posts, and tally each player's most recent <code>VOTE: Name</code> / <code>UNVOTE</code>.
+          Quoted old votes are ignored. Plain <code>Username: message</code> logs also work. This box
           keeps bold formatting when you paste, and if your game only counts <strong>bolded</strong>
           votes, we only count bolded ones too.
         </p>
@@ -94,15 +102,32 @@ Camborghini: Jerry"></textarea>
       <section class="panel" id="results" hidden>
         <div class="results-header">
           <h2>Results</h2>
-          <button id="copy-btn">Copy message</button>
+          <button id="copy-btn">
+            <svg class="icon icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+            </svg>
+            <svg class="icon icon-check icon-hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span id="copy-btn-label">Copy message</span>
+          </button>
         </div>
         <p id="detected-info" class="hint"></p>
+        <div id="output-notice" class="notice" hidden>
+          <svg class="icon icon-notice" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+          </svg>
+          <span id="output-notice-text"></span>
+        </div>
         <pre id="output"></pre>
 
         <section id="unresolved-section" hidden>
           <h3>Votes that didn't match a player</h3>
           <p class="hint">
-            Something after "vote" that isn't a known roster name or alias — likely a typo. Not
+            Something after "vote" that isn't a known roster name or alias (likely a typo). Not
             counted toward any tally or majority above.
           </p>
           <ul id="unresolved-list"></ul>

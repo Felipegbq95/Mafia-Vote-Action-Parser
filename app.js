@@ -267,7 +267,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
 
     const lineMatch = line.match(LINE_RE);
     if (!lineMatch) {
-      debug.push({ line, note: "ignored — no \"Author: message\" prefix found", ignored: true });
+      debug.push({ line, note: "ignored: no \"Author: message\" prefix found", ignored: true });
       continue;
     }
 
@@ -282,7 +282,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
     }
 
     if (action.type === "unbolded") {
-      debug.push({ line, note: `${author} mentioned "vote"/"unvote" but not in bold — ignored`, ignored: true });
+      debug.push({ line, note: `${author} mentioned "vote"/"unvote" but not in bold, ignored`, ignored: true });
       continue;
     }
 
@@ -297,7 +297,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
     }
 
     if (!action.target) {
-      debug.push({ line, note: `${author} used the word "vote" but nothing followed it — ignored`, ignored: true });
+      debug.push({ line, note: `${author} used the word "vote" but nothing followed it, ignored`, ignored: true });
       continue;
     }
 
@@ -601,7 +601,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     if (action.type === "unbolded") {
       debug.push({
         line: post.author,
-        note: `mentioned "vote"/"unvote" but not in bold (post #${post.postIndex}) — ignored`,
+        note: `mentioned "vote"/"unvote" but not in bold, ignored (post #${post.postIndex})`,
         ignored: true,
       });
       continue;
@@ -618,7 +618,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     if (!action.target) {
       debug.push({
         line: post.author,
-        note: `used the word "vote" but nothing followed it (post #${post.postIndex}) — ignored`,
+        note: `used the word "vote" but nothing followed it, ignored (post #${post.postIndex})`,
         ignored: true,
       });
       continue;
@@ -706,7 +706,7 @@ function buildMessage(result, opts = {}) {
   const { dayEndsOn = "", dayEndsAt = "", mode = "midday" } = opts;
 
   if (requestedDay != null && !dayFound) {
-    return `⚠️ Day ${requestedDay} wasn't found in the pasted thread — nothing to show. Check the day number or paste more of the thread.`;
+    return `Day ${requestedDay} wasn't found in the pasted thread. Check the day number or paste more of the thread.`;
   }
 
   const dayLabel = day ? `Day ${day} ` : "";
@@ -735,7 +735,7 @@ function buildMessage(result, opts = {}) {
   if (majority !== null) {
     const leaders = tallies.filter((t) => t.voters.length >= majority);
     for (const l of leaders) {
-      out.push(`⚠️ ${l.display} has reached majority!`);
+      out.push(`[b][color=red]${l.display} has reached majority![/color][/b]`);
     }
   }
 
@@ -948,8 +948,13 @@ if (typeof document !== "undefined") {
   const dayEndsAtInput = document.getElementById("day-ends-at-input");
   const parseBtn = document.getElementById("parse-btn");
   const copyBtn = document.getElementById("copy-btn");
+  const copyBtnLabel = document.getElementById("copy-btn-label");
+  const copyIcon = copyBtn.querySelector(".icon-copy");
+  const checkIcon = copyBtn.querySelector(".icon-check");
   const resultsSection = document.getElementById("results");
   const output = document.getElementById("output");
+  const outputNotice = document.getElementById("output-notice");
+  const outputNoticeText = document.getElementById("output-notice-text");
   const debugList = document.getElementById("debug-list");
   const detectedInfo = document.getElementById("detected-info");
   const unresolvedSection = document.getElementById("unresolved-section");
@@ -1006,7 +1011,17 @@ if (typeof document !== "undefined") {
       dayEndsAt: dayEndsAtInput.value.trim(),
     });
 
-    output.textContent = message;
+    // A requested-day-not-found warning has nothing tally-shaped to show or
+    // copy, so it gets its own icon+text notice instead of living inside the
+    // plain-text output box (which the Copy button copies verbatim).
+    const isWarning = result.requestedDay != null && !result.dayFound;
+    if (outputNotice && outputNoticeText) {
+      outputNotice.hidden = !isWarning;
+      outputNoticeText.textContent = isWarning ? message : "";
+    }
+    output.hidden = isWarning;
+    output.textContent = isWarning ? "" : message;
+    copyBtn.hidden = isWarning;
 
     if (detectedInfo) {
       const bits = [];
@@ -1019,7 +1034,7 @@ if (typeof document !== "undefined") {
     debugList.innerHTML = "";
     for (const entry of result.debug) {
       const li = document.createElement("li");
-      li.textContent = `${entry.line} — ${entry.note}`;
+      li.textContent = `${entry.line}: ${entry.note}`;
       if (entry.ignored) li.classList.add("ignored");
       debugList.appendChild(li);
     }
@@ -1054,11 +1069,15 @@ if (typeof document !== "undefined") {
       document.execCommand("copy");
       window.getSelection().removeAllRanges();
     }
-    copyBtn.textContent = "Copied!";
+    copyBtnLabel.textContent = "Copied!";
     copyBtn.classList.add("copied");
+    copyIcon.classList.add("icon-hidden");
+    checkIcon.classList.remove("icon-hidden");
     setTimeout(() => {
-      copyBtn.textContent = "Copy message";
+      copyBtnLabel.textContent = "Copy message";
       copyBtn.classList.remove("copied");
+      copyIcon.classList.remove("icon-hidden");
+      checkIcon.classList.add("icon-hidden");
     }, 1500);
   });
 }
