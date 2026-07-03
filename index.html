@@ -36,13 +36,11 @@
       <section class="panel">
         <label for="log-input">Game thread</label>
         <p class="hint">
-          Paste your forum's <strong>"Print"</strong> thread view (the format with
-          <code>Title:</code> / <code>Post by: Name on &lt;date&gt;</code> per post). We auto-detect the
-          current day, the alive player roster, and the majority threshold from your game master's
-          posts, and tally each player's most recent <code>VOTE: Name</code> / <code>UNVOTE</code>.
-          Quoted old votes are ignored. Plain <code>Username: message</code> logs also work. This box
-          keeps bold formatting when you paste, and if your game only counts <strong>bolded</strong>
-          votes, we only count bolded ones too.
+          Click the <strong>"Print"</strong> button in the thread, <code>Ctrl+A</code>,
+          <code>Ctrl+C</code>, and paste here. The app auto-detects the current day, the alive
+          player roster, and the majority threshold from the mods' posts, and tallies each player's
+          most recent <code>VOTE: Name</code> / <code>UNVOTE</code>. Quoted old votes are ignored.
+          Only <strong>bolded</strong> votes count.
         </p>
         <div
           id="log-input"
@@ -62,11 +60,7 @@ With 3 players alive it will take 2 to achieve majority.
 
 Title: Re: My Mafia Game
 Post by: Bob on May 31, 2026, 5:10:00 PM
-VOTE: Carol
-
-Title: Re: My Mafia Game
-Post by: Carol on May 31, 2026, 5:20:00 PM
-Not me! VOTE: Bob"
+VOTE: Carol"
         ></div>
 
         <fieldset class="options-fieldset">
