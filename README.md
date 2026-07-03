@@ -41,25 +41,44 @@ verbatim in a separate "Votes that didn't match a player" box in the
 results, so you can spot and correct it without it silently affecting the
 real tally or majority count.
 
-Quoted earlier messages (`Quote from: X on Y`) are stripped out on a
-best-effort basis so a quoted old vote isn't re-counted as a new one from
-whoever quoted it. Game-master recap posts (`Vote Count`, eliminations, etc.)
-are excluded from voting entirely. Forum usernames that differ from the
-shorter names players vote with (e.g. a poster called `Blottica` voting as
-"Blott") are matched against the detected roster.
+Quoted earlier messages are stripped out so a quoted old vote isn't
+re-counted as a new one from whoever quoted it. When you paste real HTML
+(the normal case), a `[quote]` renders as an actual bordered/indented box in
+the paste area, and that real structure is used to drop the quoted lines
+with certainty. If a quote has no such structure to go on (a plain-text
+paste), it falls back to matching the `Quote from: X on Y` header against an
+earlier post on a best-effort basis. Game-master recap posts (`Vote Count`,
+eliminations, etc.) are excluded from voting entirely. Forum usernames that
+differ from the shorter names players vote with (e.g. a poster called
+`Blottica` voting as "Blott") are matched against the detected roster.
 
 A player who re-votes without ever typing `UNVOTE` is handled the same as an
 explicit unvote-then-vote — whatever their latest message says wins.
 
-The output format matches how game masters usually post it by hand:
-`Name(count): voter1 (#12), voter2 (#47)`, where `#N` matches the forum's own
-"Reply #N" numbering — the thread's very first post doesn't get a reply
-number of its own, so the post right after it is `#1`. This only lines up
-with the forum's real numbering if you paste the whole thread from its true
-first post each time; a partial paste yields numbers relative to wherever
-the paste starts instead. Players are ranked by vote count, and **ties are
-broken by whoever reached that count first** (standard mafia tie rules), not
-alphabetically.
+The output is formatted as SMF BBCode, ready to paste straight into a forum
+post. Vote tallies read `Name(count): voter1 (#12), voter2 (#47)`, where
+`#N` matches the forum's own "Reply #N" numbering — the thread's very first
+post doesn't get a reply number of its own, so the post right after it is
+`#1`. This only lines up with the forum's real numbering if you paste the
+whole thread from its true first post each time; a partial paste yields
+numbers relative to wherever the paste starts instead. Players are ranked by
+vote count, and **ties are broken by whoever reached that count first**
+(standard mafia tie rules), not alphabetically.
+
+There are two output shapes, picked with the **Vote count type** dropdown:
+
+- **Mid-day check-in** (default) — tallies, a `⚠️ ... has reached majority!`
+  line for anyone there, then the full alive roster (alphabetical, not the
+  order the game master posted it in), the majority threshold, and a
+  reminder of when the day ends.
+- **End of day (final)** — a shorter closing announcement: tallies, whoever
+  has the most votes ("`X has died`"), and a bolded red banner declaring the
+  night has begun. No roster or majority line, since the day's already over.
+
+Both use the **Day ends on** / **Day ends at** fields (e.g. "Wednesday" /
+"8pm eastern") to fill in that reminder or banner — leave either blank to
+omit that line entirely. "Day ends at" is saved in your browser since it's
+usually the same all game; "Day ends on" changes each day so it isn't.
 
 A plain `Username: message` log (one message per line) also works if you'd
 rather not paste a forum export — see the in-app placeholder for the exact
@@ -74,6 +93,7 @@ Optional fields:
   recent `Day N Start`. If the requested day isn't found in what you pasted,
   you'll get a warning instead of a silently empty/wrong tally.
 - **Player list fallback** — only used if no roster could be auto-detected.
+- **Vote count type / Day ends on / Day ends at** — see output format above.
 - **Known aliases** — one player per line as `RosterName: nickname1,
   nickname2`, for players who go by a name unrelated to their roster/forum
   name (e.g. "Axatar" also goes by "Joe"). Checked before any fuzzy
@@ -85,9 +105,11 @@ formatted result straight to your clipboard for posting.
 
 ### Known limitations
 
-- Quote-stripping is heuristic, not a full BBCode parser — reused quote
-  markup that doesn't cleanly resolve is handled by keeping only the last
-  paragraph of the post, which covers the common cases but isn't foolproof.
+- Quote-stripping is exact when pasted HTML has real `[quote]` structure to
+  detect, but falls back to a heuristic (keeping only the last paragraph of
+  the post) for plain-text pastes where a `Quote from: X on Y` header can't
+  be resolved against an earlier post — this covers the common cases but
+  isn't foolproof.
 - Post numbers are computed locally from what you pasted, matching the
   forum's "Reply #N" numbering only if you paste starting from the thread's
   true first post; a partial paste yields numbers relative to wherever the

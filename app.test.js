@@ -72,8 +72,8 @@ test("buildMessage flags a player who reached majority", () => {
   const result = parseVotes(log, "Alice, Bob, Carol, Dave, Eve");
   const message = buildMessage(result);
   assert.match(message, /Bob\(3\): Alice, Carol, Dave/);
-  assert.match(message, /Majority: 3 votes needed\./);
   assert.match(message, /⚠️ Bob has reached majority!/);
+  assert.match(message, /With 5 players alive it will take 3 to achieve majority\./);
 });
 
 test("re-voting without an explicit UNVOTE still overrides the previous vote", () => {
@@ -415,4 +415,69 @@ test("forum format: real game excerpt (Day 10) matches the game master's own fin
   const voters = result.tallies.flatMap((t) => t.voters);
   assert.ok(!voters.includes("Ribs"));
   assert.ok(!voters.includes("cellucore"));
+});
+
+// --- BBCode output formats (mid-day check-in vs end-of-day final) ----------
+
+test("buildMessage mid-day mode: BBCode tally, alphabetical alive roster, majority and day-ends lines", () => {
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 1:00:00 PM",
+      "Day 5 Start\n\nAlive Player List\n\n1. Zorf\n2. Ele\n3. Blott\n4. Cell\n\nWith 4 players alive it will take 3 to achieve majority."
+    ) +
+    forumPost("Ele", "May 1, 2026, 1:05:00 PM", "vote blott") +
+    forumPost("Zorf", "May 1, 2026, 1:06:00 PM", "vote blott");
+
+  const result = parseVotes(log, "");
+  const message = buildMessage(result, { mode: "midday", dayEndsOn: "Wednesday", dayEndsAt: "8pm eastern" });
+
+  assert.match(message, /^\[size=4\]\[color=yellow\]Day 5 Vote Count\[\/color\]\[\/size\]\n/);
+  assert.match(message, /Blott\(2\): Ele \(#1\), Zorf \(#2\)/);
+
+  // Alive Player List is the *whole* roster, alphabetically, regardless of
+  // the order it was originally posted in (Zorf, Ele, Blott, Cell above).
+  const rosterIdx = message.indexOf("Alive Player List");
+  assert.ok(rosterIdx !== -1);
+  const rosterBlock = message.slice(rosterIdx);
+  assert.match(rosterBlock, /1\. Blott\n2\. Cell\n3\. Ele\n4\. Zorf/);
+
+  assert.match(message, /\[color=yellow\]With 4 players alive it will take 3 to achieve majority\.\[\/color\]/);
+  assert.match(message, /Day 5 ends Wednesday at 8pm eastern\.$/);
+});
+
+test("buildMessage mid-day mode: day-ends line is omitted when the time isn't provided", () => {
+  const log = forumPost(
+    "Bobsal",
+    "May 1, 2026, 1:00:00 PM",
+    "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority."
+  );
+  const result = parseVotes(log, "");
+  const message = buildMessage(result, { mode: "midday" });
+  assert.ok(!message.includes("ends"));
+});
+
+test("buildMessage final mode: title, top-voted player dies, closing night banner", () => {
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 1:00:00 PM",
+      "Day 5 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n3. Carol\n\nWith 3 players alive it will take 2 to achieve majority."
+    ) +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob") +
+    forumPost("Carol", "May 1, 2026, 1:06:00 PM", "vote bob");
+
+  const result = parseVotes(log, "");
+  const message = buildMessage(result, { mode: "final", dayEndsOn: "Wednesday", dayEndsAt: "8pm eastern" });
+
+  assert.match(message, /^\[size=4\]\[color=yellow\]Day 5 Final Vote Count\[\/color\]\[\/size\]\n/);
+  assert.match(message, /Bob\(2\): Alice \(#1\), Carol \(#2\)/);
+  assert.match(message, /Bob has died/);
+  // Final mode never shows the alive roster or the mid-day majority line.
+  assert.ok(!message.includes("Alive Player List"));
+  assert.ok(!message.includes("With 3 players alive"));
+  assert.match(
+    message,
+    /\[b\]\[size=4\]\[color=red\]Day 5 is over\. THE NIGHT WILL END Wednesday @ 8pm eastern\[\/color\]\[\/size\]\[\/b\]$/
+  );
 });

@@ -681,42 +681,82 @@ function parseVotes(logText, playersText, opts = {}) {
   return parseSimpleLog(logText, fallbackRoster, aliasMap);
 }
 
-function buildMessage(result) {
-  const { tallies, notVoting, majority, roster, day, requestedDay, dayFound, showPostNumbers } = result;
+// Builds the tally lines shared by both output modes: "Target(N): voter1
+// (#123), voter2 (#456)" for a forum-parsed thread (post numbers), or just
+// comma-separated names for the simple "Username: message" log format.
+function buildTallyLines(tallies, showPostNumbers) {
+  if (tallies.length === 0) return ["No votes cast yet."];
+  return tallies.map((t) => {
+    const voterText = showPostNumbers
+      ? t.voterEntries.map((v) => `${v.name} (#${v.order})`).join(", ")
+      : t.voters.join(", ");
+    return `${t.display}(${t.voters.length}): ${voterText}`;
+  });
+}
+
+// opts.mode: "midday" (default) is an in-progress status check-in --
+// tallies plus the full alive roster and a reminder of when the day ends.
+// "final" is the closing-the-day announcement -- tallies, who died, and a
+// banner declaring the night has begun. Both are formatted as SMF BBCode
+// (color/size tags) so the result can be pasted directly into a forum post.
+// opts.dayEndsOn/dayEndsAt are free text (e.g. "Wednesday" / "8pm eastern")
+// since the actual day/time varies game to game and even day to day.
+function buildMessage(result, opts = {}) {
+  const { tallies, majority, roster, day, requestedDay, dayFound, showPostNumbers } = result;
+  const { dayEndsOn = "", dayEndsAt = "", mode = "midday" } = opts;
 
   if (requestedDay != null && !dayFound) {
     return `⚠️ Day ${requestedDay} wasn't found in the pasted thread — nothing to show. Check the day number or paste more of the thread.`;
   }
 
-  const dayLabel = day ? `Day ${day}` : "";
+  const dayLabel = day ? `Day ${day} ` : "";
   const out = [];
 
-  out.push(`🗳️ Vote Count${dayLabel ? " — " + dayLabel : ""}`);
-  out.push("");
+  if (mode === "final") {
+    out.push(`[size=4][color=yellow]${dayLabel}Final Vote Count[/color][/size]`);
+    out.push(...buildTallyLines(tallies, showPostNumbers));
 
-  if (tallies.length === 0) {
-    out.push("No votes cast yet.");
-  } else {
-    for (const t of tallies) {
-      const voterText = showPostNumbers
-        ? t.voterEntries.map((v) => `${v.name} (#${v.order})`).join(", ")
-        : t.voters.join(", ");
-      out.push(`${t.display}(${t.voters.length}): ${voterText}`);
+    if (tallies.length) {
+      out.push("");
+      out.push(`${tallies[0].display} has died`);
     }
+
+    if (dayEndsOn && dayEndsAt) {
+      out.push("");
+      out.push(`[b][size=4][color=red]${dayLabel}is over. THE NIGHT WILL END ${dayEndsOn} @ ${dayEndsAt}[/color][/size][/b]`);
+    }
+
+    return out.join("\n");
   }
 
+  out.push(`[size=4][color=yellow]${dayLabel}Vote Count[/color][/size]`);
+  out.push(...buildTallyLines(tallies, showPostNumbers));
+
   if (majority !== null) {
-    out.push("");
-    out.push(`Majority: ${majority} vote${majority === 1 ? "" : "s"} needed.`);
     const leaders = tallies.filter((t) => t.voters.length >= majority);
     for (const l of leaders) {
       out.push(`⚠️ ${l.display} has reached majority!`);
     }
   }
 
-  if (roster.length && notVoting.length) {
+  if (roster.length) {
     out.push("");
-    out.push(`Not voting (${notVoting.length}): ${notVoting.join(", ")}`);
+    out.push("");
+    out.push("Alive Player List");
+    out.push("");
+    const alphabetical = roster.slice().sort((a, b) => a.localeCompare(b));
+    alphabetical.forEach((name, i) => out.push(`${i + 1}. ${name}`));
+  }
+
+  if (majority !== null && roster.length) {
+    out.push("");
+    out.push("");
+    out.push(`[color=yellow]With ${roster.length} players alive it will take ${majority} to achieve majority.[/color]`);
+  }
+
+  if (dayEndsOn && dayEndsAt) {
+    out.push("");
+    out.push(`${dayLabel}ends ${dayEndsOn} at ${dayEndsAt}.`);
   }
 
   return out.join("\n");
@@ -897,11 +937,15 @@ function buildPasteFragment(html) {
 
 if (typeof document !== "undefined") {
   const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
+  const DAY_ENDS_AT_STORAGE_KEY = "mafia-vote-counter-day-ends-at";
 
   const logInput = document.getElementById("log-input");
   const dayInput = document.getElementById("day-input");
   const playersInput = document.getElementById("players-input");
   const aliasInput = document.getElementById("alias-input");
+  const modeInput = document.getElementById("mode-input");
+  const dayEndsOnInput = document.getElementById("day-ends-on-input");
+  const dayEndsAtInput = document.getElementById("day-ends-at-input");
   const parseBtn = document.getElementById("parse-btn");
   const copyBtn = document.getElementById("copy-btn");
   const resultsSection = document.getElementById("results");
@@ -914,6 +958,8 @@ if (typeof document !== "undefined") {
   try {
     const savedAliases = window.localStorage.getItem(ALIAS_STORAGE_KEY);
     if (savedAliases) aliasInput.value = savedAliases;
+    const savedDayEndsAt = window.localStorage.getItem(DAY_ENDS_AT_STORAGE_KEY);
+    if (savedDayEndsAt) dayEndsAtInput.value = savedDayEndsAt;
   } catch (e) {
     // localStorage unavailable (e.g. private browsing) — just skip persistence.
   }
@@ -944,6 +990,7 @@ if (typeof document !== "undefined") {
   const render = () => {
     try {
       window.localStorage.setItem(ALIAS_STORAGE_KEY, aliasInput.value);
+      window.localStorage.setItem(DAY_ENDS_AT_STORAGE_KEY, dayEndsAtInput.value);
     } catch (e) {
       // ignore
     }
@@ -953,7 +1000,11 @@ if (typeof document !== "undefined") {
       day: dayInput.value.trim(),
       aliasText: aliasInput.value,
     });
-    const message = buildMessage(result);
+    const message = buildMessage(result, {
+      mode: modeInput.value,
+      dayEndsOn: dayEndsOnInput.value.trim(),
+      dayEndsAt: dayEndsAtInput.value.trim(),
+    });
 
     output.textContent = message;
 

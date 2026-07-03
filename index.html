@@ -61,6 +61,24 @@ Not me! VOTE: Bob"
           </div>
         </div>
 
+        <div class="options">
+          <div class="field">
+            <label for="mode-input">Vote count type</label>
+            <select id="mode-input">
+              <option value="midday">Mid-day check-in</option>
+              <option value="final">End of day (final)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="day-ends-on-input">Day ends on (optional)</label>
+            <input id="day-ends-on-input" type="text" placeholder="e.g. Wednesday" />
+          </div>
+          <div class="field">
+            <label for="day-ends-at-input">Day ends at (optional)</label>
+            <input id="day-ends-at-input" type="text" placeholder="e.g. 8pm eastern" />
+          </div>
+        </div>
+
         <label for="alias-input">Known aliases (optional)</label>
         <p class="hint">
           One player per line: <code>RosterName: nickname1, nickname2</code>. Use this when someone
