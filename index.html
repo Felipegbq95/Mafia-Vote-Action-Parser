@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mafia Vote Counter</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -62,7 +65,7 @@ Post by: Carol on May 31, 2026, 5:20:00 PM
 Not me! VOTE: Bob"
         ></div>
 
-        <div class="options">
+        <div class="field-grid">
           <div class="field">
             <label for="day-input">Day # (optional)</label>
             <input id="day-input" type="number" min="1" placeholder="latest day" />
@@ -73,7 +76,7 @@ Not me! VOTE: Bob"
           </div>
         </div>
 
-        <div class="options">
+        <div class="field-grid">
           <div class="field">
             <label for="mode-input">Vote count type</label>
             <select id="mode-input">
