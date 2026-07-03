@@ -19,6 +19,47 @@ function isBoldAt(str, index) {
   return depth > 0;
 }
 
+// A real forum template bolds "Title:", "Post by:", the username, and the
+// date as separate styled spans, so sentinels land *inside* structural text
+// like "Post by: X on Y" -- not just around a player's vote. That's worse
+// than it sounds: POST_HEADER_RE requires "Post by:" immediately after a
+// literal newline with zero tolerance for anything in between, so a
+// sentinel sitting right at that boundary (because "Post by:" itself is
+// bold) makes the whole regex fail to match, not just corrupt a capture --
+// the post is silently never found at all. Trimming captured groups can't
+// fix a match that never happened.
+//
+// The fix is to never run structural regexes (post/quote headers, roster,
+// day, majority) against sentinel-laden text in the first place. This pulls
+// the sentinels back out into a same-length boolean array, so parsing goes
+// back to working on plain text -- identical to before bold support existed
+// -- while boldness for any position is still a cheap array lookup for the
+// one thing that actually needs it: was *this specific* "vote" keyword
+// bolded.
+function splitMarkedText(marked) {
+  let clean = "";
+  const bold = [];
+  let depth = 0;
+  for (let i = 0; i < marked.length; i++) {
+    const ch = marked[i];
+    if (ch === BOLD_START) {
+      depth++;
+      continue;
+    }
+    if (ch === BOLD_END) {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    clean += ch;
+    bold.push(depth > 0);
+  }
+  return { clean, bold };
+}
+
+function stripSentinels(raw) {
+  return (raw || "").replace(/[\u0001\u0002]/g, "").trim();
+}
+
 function normalizeTarget(raw) {
   if (!raw) return "";
   return raw
@@ -116,7 +157,13 @@ function extractTarget(text, roster, aliasMap) {
 // skipped entirely, as if the word wasn't a vote action at all. When the
 // paste carries no formatting info (plain text, or the unit tests), this is
 // a no-op and every keyword occurrence is eligible, same as before.
-function findLastAction(message, roster, aliasMap, requireBold) {
+//
+// boldAt: an optional boolean array aligned with `message` (see
+// splitMarkedText) for callers that have already pulled sentinels out of
+// their text. When omitted, falls back to scanning `message` itself for
+// inline sentinels via isBoldAt -- used by the simple "Username: message"
+// log format, which has no header/quote structure for sentinels to corrupt.
+function findLastAction(message, roster, aliasMap, requireBold, boldAt) {
   const keywords = [];
   let match;
   KEYWORD_RE.lastIndex = 0;
@@ -129,7 +176,8 @@ function findLastAction(message, roster, aliasMap, requireBold) {
   }
   if (keywords.length === 0) return null;
 
-  const eligible = requireBold ? keywords.filter((k) => isBoldAt(message, k.start)) : keywords;
+  const isBold = boldAt ? (index) => boldAt[index] === true : (index) => isBoldAt(message, index);
+  const eligible = requireBold ? keywords.filter((k) => isBold(k.start)) : keywords;
   if (eligible.length === 0) {
     // Every "vote"/"unvote" mention in this message was plain text, not
     // bold -- per the game's rule, none of them count as a real action.
@@ -305,8 +353,8 @@ function splitForumPosts(rawText) {
   POST_HEADER_RE.lastIndex = 0;
   while ((m = POST_HEADER_RE.exec(rawText)) !== null) {
     headers.push({
-      author: m[1].trim(),
-      timestamp: m[2].trim(),
+      author: stripSentinels(m[1]),
+      timestamp: stripSentinels(m[2]),
       matchStart: m.index,
       contentStart: POST_HEADER_RE.lastIndex,
     });
@@ -315,14 +363,47 @@ function splitForumPosts(rawText) {
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i];
     const end = i + 1 < headers.length ? headers[i + 1].matchStart : rawText.length;
+    const untrimmed = rawText.slice(h.contentStart, end);
+    const leading = untrimmed.length - untrimmed.trimStart().length;
+    const trimmed = untrimmed.trim();
     posts.push({
       author: h.author,
       timestamp: h.timestamp,
-      content: rawText.slice(h.contentStart, end).trim(),
+      content: trimmed,
+      // Absolute offsets of `content` within `rawText`, so a caller holding
+      // a same-length boldness array for rawText (see splitMarkedText) can
+      // slice out the bold info for exactly this post's content.
+      contentAbsStart: h.contentStart + leading,
+      contentAbsEnd: h.contentStart + leading + trimmed.length,
       postIndex: i,
     });
   }
   return posts;
+}
+
+// Splits `text` into lines (matching text.split("\n")) alongside the
+// matching slice of a same-length boldness array per line, so line-based
+// operations can carry boldness along without re-deriving positions.
+function splitLinesWithBold(text, boldArr) {
+  const lines = text.split("\n");
+  const boldLines = [];
+  let pos = 0;
+  for (const line of lines) {
+    boldLines.push(boldArr.slice(pos, pos + line.length));
+    pos += line.length + 1; // +1 for the "\n" consumed by split
+  }
+  return { lines, boldLines };
+}
+
+// Rejoins per-line boldness arrays the way Array.prototype.join("\n") on the
+// paired lines would, inserting a non-bold slot for each joining "\n".
+function joinBoldLines(boldLines) {
+  const joined = [];
+  boldLines.forEach((line, i) => {
+    if (i > 0) joined.push(false);
+    joined.push(...line);
+  });
+  return joined;
 }
 
 // Quoted text (someone's earlier vote being re-displayed) must not be
@@ -333,37 +414,59 @@ function splitForumPosts(rawText) {
 // sometimes mangles colored usernames into stray "<font" fragments), we fall
 // back to keeping only the last blank-line-separated paragraph of the post,
 // since a post's genuinely new content is always at the end.
-function stripQuotes(content, postMap) {
-  const lines = content.split("\n");
+//
+// contentBold is a boolean array the same length as `content` (see
+// splitMarkedText); the function returns the surviving text's own boldness
+// array alongside it, kept in lockstep through every line kept/dropped.
+function stripQuotes(content, contentBold, postMap) {
+  const { lines, boldLines } = splitLinesWithBold(content, contentBold);
 
   const hasUnresolvableQuote = lines.some((l) => {
     const m = l.trim().match(QUOTE_HEADER_RE);
     if (!m) return false;
-    return !postMap.has(`${m[1].trim()}|${m[2].trim()}`);
+    return !postMap.has(`${stripSentinels(m[1])}|${stripSentinels(m[2])}`);
   });
 
   if (hasUnresolvableQuote) {
-    const paragraphs = content
-      .split(/\n\s*\n/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    return paragraphs.length ? paragraphs[paragraphs.length - 1] : "";
+    const paragraphs = [];
+    let current = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === "") {
+        if (current.length) paragraphs.push(current);
+        current = [];
+      } else {
+        current.push(i);
+      }
+    }
+    if (current.length) paragraphs.push(current);
+    if (!paragraphs.length) return { text: "", bold: [] };
+
+    const idxs = paragraphs[paragraphs.length - 1];
+    const rawParaText = idxs.map((i) => lines[i]).join("\n");
+    const rawParaBold = joinBoldLines(idxs.map((i) => boldLines[i]));
+    const leading = rawParaText.length - rawParaText.trimStart().length;
+    const text = rawParaText.trim();
+    const bold = rawParaBold.slice(leading, leading + text.length);
+    return { text, bold };
   }
 
-  const output = [];
+  const outputLines = [];
+  const outputBoldLines = [];
   const stack = []; // { lines: string[], ptr: number }
 
-  for (const rawLine of lines) {
+  for (let li = 0; li < lines.length; li++) {
+    const rawLine = lines[li];
     const headerMatch = rawLine.trim().match(QUOTE_HEADER_RE);
     if (headerMatch) {
-      const key = `${headerMatch[1].trim()}|${headerMatch[2].trim()}`;
+      const key = `${stripSentinels(headerMatch[1])}|${stripSentinels(headerMatch[2])}`;
       stack.push({ lines: postMap.get(key) || [], ptr: 0 });
       continue;
     }
 
     const trimmed = rawLine.trim();
     if (stack.length === 0) {
-      output.push(rawLine);
+      outputLines.push(rawLine);
+      outputBoldLines.push(boldLines[li]);
       continue;
     }
     if (trimmed === "") continue;
@@ -379,15 +482,24 @@ function stripQuotes(content, postMap) {
       }
       stack.pop();
     }
-    if (!consumed) output.push(rawLine);
+    if (!consumed) {
+      outputLines.push(rawLine);
+      outputBoldLines.push(boldLines[li]);
+    }
   }
 
-  return output.join("\n");
+  return { text: outputLines.join("\n"), bold: joinBoldLines(outputBoldLines) };
 }
 
 function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, aliasMap = null } = {}) {
   const requireBold = rawText.includes(BOLD_START);
-  const posts = splitForumPosts(rawText);
+  // Structural parsing (post/quote headers, roster, day, majority) always
+  // runs on sentinel-free text -- see splitMarkedText's comment for why a
+  // bolded "Post by:" would otherwise make posts silently fail to be found
+  // at all. `bold` is boldness-per-character of `cleanText`, sliced out
+  // per-post below for the one thing that still needs it: vote keywords.
+  const { clean: cleanText, bold } = splitMarkedText(rawText);
+  const posts = splitForumPosts(cleanText);
   const postMap = new Map();
 
   let currentVotes = new Map();
@@ -429,7 +541,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
           let lm;
           ROSTER_LINE_RE.lastIndex = 0;
           while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
-            names.push(lm[1].trim());
+            names.push(stripSentinels(lm[1]));
           }
           if (names.length) roster = names;
         }
@@ -441,8 +553,9 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
 
     if (targetDay != null && dayNumber !== targetDay) continue;
 
-    const cleaned = stripQuotes(post.content, postMap);
-    const action = findLastAction(cleaned, roster, aliasMap, requireBold);
+    const contentBold = bold.slice(post.contentAbsStart, post.contentAbsEnd);
+    const cleaned = stripQuotes(post.content, contentBold, postMap);
+    const action = findLastAction(cleaned.text, roster, aliasMap, requireBold, cleaned.bold);
     if (!action) continue;
 
     const authorLower = post.author.toLowerCase();
@@ -620,29 +733,55 @@ function extractMarkedText(root) {
   return text;
 }
 
-// A real forum "print" page is riddled with embedded images and animated
-// gifs (screenshots, memes, avatars). Left to its default behavior, pasting
-// into a contenteditable hands the browser the full rich clipboard payload
-// and it inserts real <img>/<video> nodes for every one of them, which then
-// all start fetching and decoding at once — on a thread with dozens of them
-// (a real 2000+ post game thread easily has this many) that's enough to
-// freeze the tab well before Parse is ever clicked. None of that media is
-// needed for parsing, so this strips it out of the pasted HTML before it's
-// inserted, keeping only text and the formatting tags bold-detection cares
-// about.
+// A real forum "print" page is riddled with embedded images/gifs *and* with
+// small inline-styled spans around nearly every date, username, and post
+// header — real forum markup, not something we control. Two different
+// things go wrong if the browser's default paste behavior is left alone:
+//
+// 1. Every <img>/<video> becomes a real node that starts fetching and
+//    decoding immediately.
+// 2. `document.execCommand("insertHTML", ...)` — the standard way to insert
+//    sanitized HTML into a contenteditable at the cursor — is notoriously
+//    slow for large pastes: it does per-node style normalization and undo-
+//    stack bookkeeping as it goes, so a few thousand small styled spans (one
+//    real 1500-post thread's worth) makes it hang for a minute or more, with
+//    or without any images in the mix.
+//
+// The fix for both is to never hand the original, deeply-nested markup to
+// the live DOM at all. We only care about plain text plus which parts of it
+// are bold, so this walks the pasted HTML *once*, off-DOM, collapses it into
+// a short list of (text, isBold) runs (adjacent same-boldness text merges
+// into one run), and builds a *minimal* fragment — one <b> or text node per
+// run — to insert directly via Range.insertNode. A thousand-post paste with
+// thousands of source spans collapses to a comparative handful of runs,
+// which is cheap to insert regardless of how heavy the original markup was.
 const STRIP_TAGS = ["img", "video", "audio", "picture", "source", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link", "track"];
+const BLOCK_TAGS = new Set(["div", "p", "li", "tr", "blockquote", "h1", "h2", "h3", "h4"]);
 
 // A void/self-closing element (no closing tag, e.g. <img>, <source>) vs. a
 // container that wraps content up to a matching close tag (e.g. <video>...
 // </video>). Browsers start fetching an <img src="..."> the instant they
 // parse it into *any* element, even a detached, never-rendered one — so
-// removing the node afterward (in the DOM pass below) is too late to stop
-// the network request. Stripping the tags out of the raw string first,
-// before anything ever parses it, avoids that fetch entirely.
+// removing the node afterward is too late to stop the network request.
+// Stripping the tags out of the raw string first, before anything ever
+// parses it, avoids that fetch entirely.
 const VOID_STRIP_TAGS = ["img", "source", "track"];
 const CONTAINER_STRIP_TAGS = ["video", "audio", "picture", "iframe", "embed", "object", "svg", "canvas", "script", "style", "link"];
 
-function sanitizePastedHtml(html) {
+function isBoldElement(node) {
+  const tag = node.tagName.toLowerCase();
+  if (tag === "b" || tag === "strong") return true;
+  const weight = node.style && node.style.fontWeight;
+  if (!weight) return false;
+  if (weight === "bold" || weight === "bolder") return true;
+  const n = parseInt(weight, 10);
+  return !Number.isNaN(n) && n >= 600;
+}
+
+// Builds a small DocumentFragment (plain text nodes + <b> wrappers only)
+// from pasted HTML, for insertion into the live contenteditable in place of
+// the original markup. See the block comment above for why.
+function buildPasteFragment(html) {
   let cleaned = html;
   for (const tag of VOID_STRIP_TAGS) {
     cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*>`, "gi"), "");
@@ -652,14 +791,47 @@ function sanitizePastedHtml(html) {
     cleaned = cleaned.replace(new RegExp(`<${tag}\\b[^>]*\\/>`, "gi"), "");
   }
 
-  // Second pass over the (now much lighter) DOM tree in case anything
-  // malformed slipped past the string-level strip above.
   const container = document.createElement("div");
   container.innerHTML = cleaned;
-  for (const tag of STRIP_TAGS) {
-    for (const el of Array.from(container.querySelectorAll(tag))) el.remove();
+
+  const runs = []; // { text, bold }
+  const pushText = (text, bold) => {
+    if (!text) return;
+    const last = runs[runs.length - 1];
+    if (last && last.bold === bold) last.text += text;
+    else runs.push({ text, bold });
+  };
+
+  const walk = (node, bold) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      pushText(node.nodeValue, bold);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = node.tagName.toLowerCase();
+    if (STRIP_TAGS.includes(tag)) return;
+    if (tag === "br") {
+      pushText("\n", false);
+      return;
+    }
+    const childBold = bold || isBoldElement(node);
+    for (const child of node.childNodes) walk(child, childBold);
+    if (BLOCK_TAGS.has(tag)) pushText("\n", false);
+  };
+
+  for (const child of container.childNodes) walk(child, false);
+
+  const fragment = document.createDocumentFragment();
+  for (const run of runs) {
+    if (run.bold) {
+      const b = document.createElement("b");
+      b.appendChild(document.createTextNode(run.text));
+      fragment.appendChild(b);
+    } else {
+      fragment.appendChild(document.createTextNode(run.text));
+    }
   }
-  return container.innerHTML;
+  return fragment;
 }
 
 if (typeof document !== "undefined") {
@@ -687,13 +859,25 @@ if (typeof document !== "undefined") {
 
   logInput.addEventListener("paste", (event) => {
     event.preventDefault();
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+
     const html = event.clipboardData && event.clipboardData.getData("text/html");
-    if (html) {
-      document.execCommand("insertHTML", false, sanitizePastedHtml(html));
-      return;
-    }
-    const text = (event.clipboardData && event.clipboardData.getData("text/plain")) || "";
-    document.execCommand("insertText", false, text);
+    const fragment = html
+      ? buildPasteFragment(html)
+      : document.createTextNode((event.clipboardData && event.clipboardData.getData("text/plain")) || "");
+    range.insertNode(fragment);
+
+    // Move the cursor to the end of the box rather than tracking the exact
+    // insertion point — for a paste this size the user is about to hit
+    // Parse anyway, not keep typing mid-document.
+    const endRange = document.createRange();
+    endRange.selectNodeContents(logInput);
+    endRange.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(endRange);
   });
 
   const render = () => {

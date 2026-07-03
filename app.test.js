@@ -296,6 +296,51 @@ test("bold-only voting: only the bolded portion of a message needs to cover the 
   assert.equal(result.tallies[0].display, "Bob");
 });
 
+// A real forum print page bolds "Title:", "Post by:", the username, and the
+// date as separate styled spans (each gets its own bold/color wrapper), so
+// the DOM walk emits sentinels *inside* the "Post by: X on Y" header line
+// itself, not just around a player's vote. This must not break post
+// detection -- a sentinel sitting where the header regex expects a literal
+// newline immediately followed by "Post by:" used to make the whole post
+// silently fail to be found at all.
+function boldForumHeaderPost(author, timestamp, body) {
+  return (
+    `Title: Re: Test Game\n${B}Post by:${E} ${B}${author}${E} on ${B}${timestamp}${E}\n${body}\n\n`
+  );
+}
+
+test("bold-only voting: a bolded 'Post by:' header (real forum template styling) doesn't break post detection", () => {
+  const log =
+    boldForumHeaderPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    boldForumHeaderPost("Alice", "May 1, 2026, 1:05:00 PM", `${B}vote bob${E}`);
+
+  const result = parseVotes(log, "");
+  assert.equal(result.day, 1);
+  assert.deepEqual(result.roster, ["Alice", "Bob"]);
+  assert.equal(result.majority, 2);
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
+test("bold-only voting: a quoted post still resolves correctly when both posts have bolded headers", () => {
+  const log =
+    boldForumHeaderPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Alice\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority.") +
+    boldForumHeaderPost("Alice", "May 1, 2026, 1:05:00 PM", `${B}vote bob${E}`) +
+    boldForumHeaderPost(
+      "Bob",
+      "May 1, 2026, 1:10:00 PM",
+      `Quote from: Alice on May 1, 2026, 1:05:00 PM\nvote bob\n\nlol why would you pick me`
+    );
+
+  const result = parseVotes(log, "");
+  // Bob's real reply has no bolded vote keyword of its own, so he shouldn't
+  // appear as a voter -- his quote of Alice's bolded vote must be stripped.
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+  assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
 test("forum format: real game excerpt (Day 10) matches the game master's own final tally", () => {
   const fixture = fs.readFileSync(path.join(__dirname, "fixtures", "day10.txt"), "utf8");
   const result = parseVotes(fixture, "");
