@@ -1,24 +1,23 @@
 :root {
-  --bg: #0a0b0e;
-  --panel: #131519;
-  --panel-raised: #191c22;
-  --border: #23262e;
-  --border-soft: #1b1d24;
-  --text: #f1f2f4;
-  --muted: #8a92a3;
+  --bg: #0a0b12;
+  --panel: #12131d;
+  --panel-raised: #181a26;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.05);
+  --text: #f2f3f6;
+  --muted: #8b93a6;
   --accent: #e0454f;
   --accent-hover: #ef5a63;
   --accent-soft: rgba(224, 69, 79, 0.16);
   --amber: #eab54e;
   --amber-bg: rgba(234, 181, 78, 0.08);
-  --amber-border: rgba(234, 181, 78, 0.3);
   --green: #4caf7d;
   --green-bg: rgba(76, 175, 125, 0.12);
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 }
 
 * {
@@ -123,7 +122,11 @@ label {
   display: block;
   font-weight: 600;
   font-size: 0.92rem;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  margin-top: 32px;
 }
 
 .hint {
@@ -135,7 +138,6 @@ label {
 
 .hint code {
   background: var(--panel-raised);
-  border: 1px solid var(--border);
   padding: 1px 6px;
   border-radius: 5px;
   font-family: var(--font-mono);
@@ -189,7 +191,7 @@ textarea {
 }
 
 .log-input::-webkit-scrollbar-thumb:hover {
-  background: #383d4a;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .log-input:empty::before {
@@ -217,9 +219,16 @@ textarea {
   margin-top: 18px;
 }
 
+.field {
+  margin-top: 18px;
+}
+
+.field-grid .field {
+  margin-top: 0;
+}
+
 input[type="text"],
-input[type="number"],
-select {
+input[type="number"] {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -230,15 +239,6 @@ select {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%238a92a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 18px;
-  padding-right: 34px;
-}
-
 .alias-textarea {
   min-height: 80px;
 }
@@ -246,11 +246,55 @@ select {
 textarea:focus,
 .log-input:focus,
 input[type="text"]:focus,
-input[type="number"]:focus,
-select:focus {
+input[type="number"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Square/card picker used for "Vote count type" and "Day ends on", instead
+   of a native <select> or free-text field -- see initChoiceGroup in app.js. */
+.choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.choice {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 12px 18px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.choice:hover {
+  color: var(--text);
+}
+
+.choice[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.day-picker {
+  gap: 8px;
+}
+
+.day-picker .choice {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
 }
 
 button {
@@ -271,7 +315,7 @@ button:hover {
 }
 
 #parse-btn {
-  margin-top: 22px;
+  margin-top: 28px;
 }
 
 .results-header {
@@ -313,7 +357,7 @@ button:hover {
 }
 
 #copy-btn:hover {
-  background: #21252d;
+  background: #21232f;
 }
 
 #copy-btn.copied {

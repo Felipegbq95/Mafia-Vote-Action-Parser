@@ -76,17 +76,26 @@ Not me! VOTE: Bob"
           </div>
         </div>
 
+        <div class="field">
+          <label id="mode-group-label">Vote count type</label>
+          <div class="choice-group" id="mode-group" role="radiogroup" aria-labelledby="mode-group-label">
+            <button type="button" class="choice" data-value="midday" aria-checked="true" role="radio">Mid-day check-in</button>
+            <button type="button" class="choice" data-value="final" aria-checked="false" role="radio">End of day (final)</button>
+          </div>
+        </div>
+
         <div class="field-grid">
           <div class="field">
-            <label for="mode-input">Vote count type</label>
-            <select id="mode-input">
-              <option value="midday">Mid-day check-in</option>
-              <option value="final">End of day (final)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="day-ends-on-input">Day ends on (optional)</label>
-            <input id="day-ends-on-input" type="text" placeholder="e.g. Wednesday" />
+            <label id="day-ends-on-group-label">Day ends on (optional)</label>
+            <div class="choice-group day-picker" id="day-ends-on-group" role="radiogroup" aria-labelledby="day-ends-on-group-label">
+              <button type="button" class="choice" data-value="Sunday" aria-checked="false" role="radio">Su</button>
+              <button type="button" class="choice" data-value="Monday" aria-checked="false" role="radio">Mo</button>
+              <button type="button" class="choice" data-value="Tuesday" aria-checked="false" role="radio">Tu</button>
+              <button type="button" class="choice" data-value="Wednesday" aria-checked="false" role="radio">We</button>
+              <button type="button" class="choice" data-value="Thursday" aria-checked="false" role="radio">Th</button>
+              <button type="button" class="choice" data-value="Friday" aria-checked="false" role="radio">Fr</button>
+              <button type="button" class="choice" data-value="Saturday" aria-checked="false" role="radio">Sa</button>
+            </div>
           </div>
           <div class="field">
             <label for="day-ends-at-input">Day ends at (optional)</label>
@@ -94,7 +103,7 @@ Not me! VOTE: Bob"
           </div>
         </div>
 
-        <label for="alias-input">Known aliases (optional)</label>
+        <label for="alias-input" class="section-label">Known aliases (optional)</label>
         <p class="hint">
           One player per line: <code>RosterName: nickname1, nickname2</code>. Use this when someone
           votes using a name unrelated to their roster/forum name (e.g. "Axatar" also goes by "Joe").

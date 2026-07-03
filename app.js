@@ -935,6 +935,35 @@ function buildPasteFragment(html) {
   return fragment;
 }
 
+// Turns a row of buttons (each with a data-value attribute) into a single-
+// select control, used for the "Vote count type" and "Day ends on" pickers
+// in place of a native <select>/<input> -- lets the selected option be
+// styled as a highlighted square/card instead of a native dropdown.
+// allowDeselect: clicking the already-selected option clears it back to no
+// selection, matching "Day ends on" being optional (blank omits that line
+// from the output); the mode picker doesn't need this since it always has
+// a sensible default.
+function initChoiceGroup(container, { defaultValue = "", allowDeselect = false } = {}) {
+  let value = defaultValue;
+  const buttons = Array.from(container.querySelectorAll(".choice"));
+
+  const applyState = () => {
+    for (const btn of buttons) {
+      btn.setAttribute("aria-checked", String(btn.dataset.value === value));
+    }
+  };
+
+  for (const btn of buttons) {
+    btn.addEventListener("click", () => {
+      value = allowDeselect && btn.dataset.value === value ? "" : btn.dataset.value;
+      applyState();
+    });
+  }
+
+  applyState();
+  return { get: () => value };
+}
+
 if (typeof document !== "undefined") {
   const ALIAS_STORAGE_KEY = "mafia-vote-counter-aliases";
   const DAY_ENDS_AT_STORAGE_KEY = "mafia-vote-counter-day-ends-at";
@@ -943,8 +972,6 @@ if (typeof document !== "undefined") {
   const dayInput = document.getElementById("day-input");
   const playersInput = document.getElementById("players-input");
   const aliasInput = document.getElementById("alias-input");
-  const modeInput = document.getElementById("mode-input");
-  const dayEndsOnInput = document.getElementById("day-ends-on-input");
   const dayEndsAtInput = document.getElementById("day-ends-at-input");
   const parseBtn = document.getElementById("parse-btn");
   const copyBtn = document.getElementById("copy-btn");
@@ -959,6 +986,9 @@ if (typeof document !== "undefined") {
   const detectedInfo = document.getElementById("detected-info");
   const unresolvedSection = document.getElementById("unresolved-section");
   const unresolvedList = document.getElementById("unresolved-list");
+
+  const modeGroup = initChoiceGroup(document.getElementById("mode-group"), { defaultValue: "midday" });
+  const dayEndsOnGroup = initChoiceGroup(document.getElementById("day-ends-on-group"), { allowDeselect: true });
 
   try {
     const savedAliases = window.localStorage.getItem(ALIAS_STORAGE_KEY);
@@ -1006,8 +1036,8 @@ if (typeof document !== "undefined") {
       aliasText: aliasInput.value,
     });
     const message = buildMessage(result, {
-      mode: modeInput.value,
-      dayEndsOn: dayEndsOnInput.value.trim(),
+      mode: modeGroup.get(),
+      dayEndsOn: dayEndsOnGroup.get(),
       dayEndsAt: dayEndsAtInput.value.trim(),
     });
 
