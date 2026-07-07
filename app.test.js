@@ -98,6 +98,26 @@ test("vote with no target name is ignored", () => {
   assert.equal(result.tallies.length, 0);
 });
 
+test("fuzzy target matching checks every word of a multi-word roster name, not just the first", () => {
+  const roster = "Akita, Alaskan Malamute, Border Collie, French Bulldog, Great Dane";
+  const log = ["Bob: VOTE: malamute", "Carol: VOTE: collie", "Dave: VOTE: frenchie", "Eve: VOTE: dane"].join("\n");
+  const result = parseVotes(log, roster);
+  const byTarget = Object.fromEntries(result.tallies.map((t) => [t.display, t.voters]));
+  assert.deepEqual(byTarget["Alaskan Malamute"], ["Bob"]);
+  assert.deepEqual(byTarget["Border Collie"], ["Carol"]);
+  assert.deepEqual(byTarget["French Bulldog"], ["Dave"]);
+  assert.deepEqual(byTarget["Great Dane"], ["Eve"]);
+});
+
+test("fuzzy target matching leaves an ambiguous shorthand unresolved rather than guessing", () => {
+  const roster = "Golden Retriever, Labrador Retriever";
+  const log = ["Alice: VOTE: retriever"].join("\n");
+  const result = parseVotes(log, roster);
+  assert.equal(result.tallies.length, 0);
+  assert.equal(result.unresolvedTallies.length, 1);
+  assert.equal(result.unresolvedTallies[0].display, "retriever");
+});
+
 // --- Forum "print" thread format --------------------------------------------
 
 function forumPost(author, timestamp, body) {
@@ -213,6 +233,35 @@ test("forum format: requesting a specific day only tallies that day, even if the
   assert.equal(result.tallies.length, 1);
   assert.equal(result.tallies[0].display, "Bob");
   assert.deepEqual(result.tallies[0].voters, ["Alice"]);
+});
+
+test("forum format: alive roster is found even when it predates any \"Day N Start\" post and a later day is requested", () => {
+  // Some game masters maintain the alive-player-list/majority block by
+  // editing a single early post (often the very first or second post of
+  // the thread) in place every time someone dies, rather than reposting it
+  // each day -- so it never itself contains "Day N Start" text, and a
+  // fresh paste of the thread only ever has one such block, sitting before
+  // any day announcement. Roster detection must not depend on having
+  // already seen a day-start post that matches the requested day.
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 12:00:00 PM",
+      "Alive Player List\n\n1. Alice\n2. Bob\n3. Carol\n\nWith 3 players alive it will take 2 to achieve majority."
+    ) +
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start") +
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob") +
+    forumPost("Bobsal", "May 2, 2026, 1:00:00 PM", "Day 2 Start") +
+    forumPost("Bob", "May 2, 2026, 1:05:00 PM", "vote carol");
+
+  const result = parseVotes(log, "", { day: 2 });
+  assert.equal(result.day, 2);
+  assert.equal(result.dayFound, true);
+  assert.deepEqual(result.roster, ["Alice", "Bob", "Carol"]);
+  assert.equal(result.majority, 2);
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Carol");
+  assert.deepEqual(result.tallies[0].voters, ["Bob"]);
 });
 
 test("forum format: requesting a day that isn't in the pasted thread is reported, not silently wrong", () => {

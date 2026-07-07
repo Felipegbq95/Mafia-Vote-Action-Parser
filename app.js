@@ -153,10 +153,22 @@ function extractTarget(text, roster, aliasMap) {
 
   if (rosterLower.length) {
     const w0 = words[0].toLowerCase();
-    const fuzzyIdx = rosterLower.findIndex(
-      (r) => r.length >= 3 && w0.length >= 3 && (w0.startsWith(r) || r.startsWith(w0))
-    );
-    if (fuzzyIdx !== -1) return { text: roster[fuzzyIdx], resolved: true };
+    const fuzzyPrefix = (a, b) => a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a));
+    // Real roster names are often multi-word (e.g. "Alaskan Malamute",
+    // "Border Collie"), and people naturally shorten to whichever word is
+    // most distinctive, not necessarily the first one ("malamute", not
+    // "alaskan"). Matching against every word in a multi-word name, not
+    // just the whole string, catches that -- but if a shorthand is
+    // ambiguous between two roster entries (e.g. "retriever" for both
+    // "Golden Retriever" and "Labrador Retriever"), don't silently guess
+    // one; leave it unresolved like any other unclear target so it's
+    // surfaced instead of quietly attributed to the wrong player.
+    const fuzzyMatches = [];
+    rosterLower.forEach((r, idx) => {
+      const matches = fuzzyPrefix(w0, r) || r.split(" ").some((part) => fuzzyPrefix(w0, part));
+      if (matches) fuzzyMatches.push(idx);
+    });
+    if (fuzzyMatches.length === 1) return { text: roster[fuzzyMatches[0]], resolved: true };
   }
 
   if (!rosterLower.length) return { text: words[0], resolved: true };
@@ -540,11 +552,33 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
   const postMap = new Map();
 
   let currentVotes = new Map();
-  let roster = fallbackRoster.slice();
-  let majority = null;
   let dayNumber = null;
   let dayFound = targetDay == null;
   const debug = [];
+
+  // The alive roster and majority threshold live in a single mod post that
+  // gets edited in place every time someone dies, rather than reposted --
+  // so a fresh paste of the thread only ever contains one such block, and
+  // it's often one of the very first posts (sometimes before any "Day N
+  // Start" announcement exists yet). Matching it once against the whole
+  // thread up front, independent of the day-tracking loop below, finds it
+  // regardless of which day is requested or how early it sits -- gating it
+  // on "day number seen so far" (as a prior version did) could miss it
+  // entirely for a post that predates the first day announcement.
+  let roster = fallbackRoster.slice();
+  let majority = null;
+  const rosterMatch = cleanText.match(ROSTER_BLOCK_RE);
+  if (rosterMatch) {
+    const names = [];
+    let lm;
+    ROSTER_LINE_RE.lastIndex = 0;
+    while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
+      names.push(stripSentinels(lm[1]));
+    }
+    if (names.length) roster = names;
+  }
+  const majorityMatch = cleanText.match(MAJORITY_RE);
+  if (majorityMatch) majority = parseInt(majorityMatch[1], 10);
 
   for (const post of posts) {
     postMap.set(
@@ -570,20 +604,6 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
           if (newDay === targetDay) dayFound = true;
           debug.push({ line: `Day ${dayNumber} Start`, note: "new day detected, tally reset" });
         }
-      }
-      if (targetDay == null || dayNumber === targetDay) {
-        const rosterMatch = post.content.match(ROSTER_BLOCK_RE);
-        if (rosterMatch) {
-          const names = [];
-          let lm;
-          ROSTER_LINE_RE.lastIndex = 0;
-          while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
-            names.push(stripSentinels(lm[1]));
-          }
-          if (names.length) roster = names;
-        }
-        const majorityMatch = post.content.match(MAJORITY_RE);
-        if (majorityMatch) majority = parseInt(majorityMatch[1], 10);
       }
       continue;
     }
@@ -972,6 +992,39 @@ function initChoiceGroup(container, { defaultValue = "", allowDeselect = false }
 // name that doesn't already exactly/fuzzily match the detected roster.
 const FALLBACK_PLAYERS = ""; // comma-separated, e.g. "Alice, Bob, Carol"
 const KNOWN_ALIASES = ""; // one player per line: "RosterName: nickname1, nickname2"
+
+// A running record of every pseudonym that's been used across games so far,
+// kept separate from FALLBACK_PLAYERS/KNOWN_ALIASES on purpose: only a
+// subset of these plays in any single game, so this must never be treated
+// as a game's roster or auto-injected as a fallback. It isn't consulted by
+// any parsing logic yet -- add names here as new games introduce ones that
+// haven't shown up before, and it's ready whenever it's needed.
+const PLAYER_NAME_POOL = [
+  "Akita",
+  "Alaskan Malamute",
+  "Australian Shepherd",
+  "Beagle",
+  "Bernese Mountain Dog",
+  "Border Collie",
+  "Boxer",
+  "Cane Corso",
+  "Chihuahua",
+  "Cocker Spaniel",
+  "Corgi",
+  "Dalmatian",
+  "Dobermann",
+  "French Bulldog",
+  "Golden Retriever",
+  "Great Dane",
+  "Irish Wolfhound",
+  "Labrador Retriever",
+  "Pitbull",
+  "Pomeranian",
+  "Portuguese Water Dog",
+  "Pug",
+  "Rottweiler",
+  "Shiba Inu",
+];
 
 if (typeof document !== "undefined") {
   const DAY_ENDS_AT_STORAGE_KEY = "mafia-vote-counter-day-ends-at";
