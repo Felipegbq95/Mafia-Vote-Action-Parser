@@ -1,0 +1,307 @@
+Text only | Text with Images
+Might | Zul'jin
+General => Mafia => Topic started by: Bubblekin on July 05, 2026, 12:05:19 AM
+Title: Mafia 52 - World Cupfia
+Post by: Bubblekin on July 05, 2026, 12:05:19 AM
+(https://carboncredits.com/wp-content/uploads/2025/09/shutterstock_2306088965-e1757112807302-1068x749.jpg)
+
+
+Rules
+
+You are free to discuss whatever you want, claim whatever you want, and draw whatever conclusions you want; just remember that anything can be faked. Once you are dead, you may only post in the thread for dead players, so do not continue to post in your faction's thread or in the main post. Keep communication with players that are alive to a minimum so you do not give anybody an unfair advantage. If you post as a dead player in this thread or your alignment's thread, your post(s) will be deleted, and your alignment will be punished as a result.
+
+Communicating with other players, outside of the game thread about the game is forbidden.
+Quoting/Screenshotting/using anything provided by moderators in a PM/Discord as evidence is forbidden, this includes but is not limited to providing a link to your forum.
+Editing of posts after 10 minutes is forbidden.
+Editing votes is forbidden.
+Deleting posts is forbidden.
+Players who do not post once in a Game Day will be mod-killed for inactivity barring certain circumstances. This does not apply if the Game Day lasts less than 24 hours.
+Do not assume a Character's Allegiance based on their faction from other mediums. You may or may not be sorely disappointed.
+
+
+New Addition
+
+Although everyone will know who is playing from the sign-up list. Everyone will be assigned accounts for anonymity. It is highly encouraged that discussions stay more on topic related to the game rather than figuring out who is who or using who you are as a defense. However, this will not be enforced by mods.
+
+When a card is flipped. It will show the account name on the card and not the actual player.
+
+
+Questions/FAQs
+
+
+If you have a question, you can always ask in the game thread. This will be considered to be part of the game and it will be up to the other players if they wish to reply or not. I will only reply if the question matters to all (i.e. I have forgotten to write a deadline in the morning post).
+
+You may also ask a question in your Discord thread. I may not be able to answer based on the nature of the question.
+
+All role cards upon death will have any links to other players in the game removed.
+
+
+Day
+
+Everyone has one vote per day to use to decide who to lynch. You can always change your vote, or even have no current vote. Once a player has gotten a majority of the alive players' total votes, they are immediately lynched and may no longer post in the thread - if you have information you need to make public, make sure you say it before you get that last vote. The day will go on until someone reaches the required number of votes for a lynch, the town decides to no-lynch or the deadline is reached.
+
+
+Put your decision in Bold Letters
+To vote for someone, use "Vote: [Player]"
+To remove your vote, use "Unvote"
+To vote for a no-lynch, "use VOTE: No-Lynch"
+
+
+A vote that is not bolded will not be counted. I will accept whatever your most current vote is.
+
+The day phase will typically last for 24 hours and will start at 8:00 PM EST and will shorten late game. Day 1 will be 36~ hours.
+
+New Players
+Clicking on a player's name will take you to their profile where you can click on show posts and easily see their post history.
+You can easily navigate to the thread by clicking the Show unread posts since last visit button in the top right corner of the forums.
+The https://www.mafiauniverse.com/wiki/Category:Roles or https://wiki.mafiascum.net/index.php?title=Main_Page is a good resource to learn common terms. I recommend reading the play advice section for your role. If you cannot find your role I can point you in the closest direction.
+https://wiki.mafiascum.net/index.php?title=How_to_Not_Mess_Up_as_Town
+
+
+Night
+
+Everyone with a night action may post their action in their designated channels. No players are allowed to discuss anything in the game thread at this time unless specified. The Night Phase typically will last for 24 hours. The thread will not be locked in this game.
+
+
+
+
+Day 1 will begin Monday and end Tuesday at 8pm eastern.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Bubblekin on July 06, 2026, 08:38:16 PM
+(https://i.guim.co.uk/img/media/9de7bab5f85cf9eed3737bbe67659ef497e5e2d4/0_0_7787_4675/master/7787.jpg?width=465&dpr=1&s=none&crop=none)
+
+
+Welcome to all players, managers, and
+tournament officials. The wait is finally over, and the World Cup is officially underway. Whether you're calling the shots from the sidelines, keeping the games fair, or stepping onto the pitch yourself, we're glad to have you here.
+
+Important Reminder -
+
+Although everyone will know who is playing from the sign-up list. Everyone will be assigned accounts for anonymity. It is highly encouraged that discussions stay more on topic related to the game rather than figuring out who is who or using who you are as a defense. However, this will not be enforced by mods.
+
+When a card is flipped. It will show the account name on the card and not the actual player.
+
+Alive Player List -
+
+Akita
+Alaskan Malamute
+Australian Shepherd
+Beagle
+Bernese Mountain Dog
+Border Collie
+Boxer
+Cane Corso
+Chihuahua
+Cocker Spaniel
+Corgi
+Dalmatian
+Dobermann
+French Bulldog
+Golden Retriever
+Great Dane
+Irish Wolfhound
+Labrador Retriever
+Pitbull
+Pomeranian
+Portuguese Water Dog
+Pug
+Rottweiler
+Shiba Inu
+
+
+
+Before we begin the tournament to crown the winners of the world cup, we will be hosting a mini penalty shootout.
+
+Each player will be given 1 vote that they cannot use on themselves.
+
+At the end of the day, the top 4 most voted for players will participate in a penalty shootout during Night 1. Standard voting rules apply in relation to tied votes.
+
+The Showdown will function as follows.
+
+Match 1 - 1st vs 4th
+Match 2 - 2nd vs 3rd
+
+Match 3 - Loser of Match 1 vs Loser of Match 2
+Match 4 - Winner of Match 1 vs Winner of Match 2
+
+This will determine who places 1st to 4th.
+
+
+How does the Penalty Shootout work?
+
+Players take turns as the Shooter and the Goalkeeper, guessing one of three directions: Left, Middle, or Right.
+
+To Score: The Shooter and GK must pick different directions.
+To Save: The GK must pick the same direction as the Shooter.
+
+Match Structure
+
+3 Rounds: Each round consists of both players taking one shot and defending one shot.
+
+Sudden Death: If it is still tied after 3 rounds, we move to sudden death (first to score while the other misses wins)
+
+Quick Example:
+
+Turn A: Player 1 (GK) dives Left. Player 4 (Shooter) aims Right. Will result in a goal (Player 4 leads 1-0)
+Turn B: They swap roles. Player 4 (GK) dives Middle. Player 1 (Shooter) aims Middle. Will result in a save.
+End of Round 1: Player 4 leads 1-0.
+
+The 4 players chosen for the shootout will not be targetable by night actions
+
+The day will end Tuesday @ 8pm est and the shootout will begin.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 08:43:26 PM
+This will be interesting
+Title: Re: Mafia 52 - World Cupfia
+Post by: Irish Wolfhound on July 06, 2026, 08:44:24 PM
+hey guys, derpingtoast here
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 06, 2026, 08:44:27 PM
+: /
+Title: Re: Mafia 52 - World Cupfia
+Post by: Golden Retriever on July 06, 2026, 08:44:41 PM
+hi guys im town and my ability is if messi visits me at night I get mod confirmed as town and that's my only ability so if messi could visit me at night and if we could vote me for the shootout for the love of the game that'd be chill too
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 08:45:42 PM
+Please vote for me my card is useless if I am not in the event
+Title: Re: Mafia 52 - World Cupfia
+Post by: Australian Shepherd on July 06, 2026, 08:47:32 PM
+Best dog btw
+Title: Re: Mafia 52 - World Cupfia
+Post by: Boxer on July 06, 2026, 08:48:03 PM
+If I win the day 1 event its really good for town.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 08:49:25 PM
+Let a big dog get active
+Title: Re: Mafia 52 - World Cupfia
+Post by: Doberman on July 06, 2026, 08:58:35 PM
+woof woof - me good dog, want play with hooman ball
+Title: Re: Mafia 52 - World Cupfia
+Post by: Alaskan Malamute on July 06, 2026, 09:02:48 PM
+strong arm emoji, tired face emoji, kiss mark emoji, clap emoji, ok hand emoji, corn emoji, alien emoji, ghost emoji, wave emoji, hundred points emoji
+Title: Re: Mafia 52 - World Cupfia
+Post by: Labrador Retriever on July 06, 2026, 09:04:28 PM
+meow
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 09:25:23 PM
+Vote: Boxer
+Title: Re: Mafia 52 - World Cupfia
+Post by: Bernese Mountain Dog on July 06, 2026, 09:43:18 PM
+Guys whos ronaldo hes my goat
+Title: Re: Mafia 52 - World Cupfia
+Post by: Rottweiler on July 06, 2026, 09:51:14 PM
+Quote from: Golden Retriever on July 06, 2026, 08:44:41 PM
+hi guys im town and my ability is if messi visits me at night I get mod confirmed as town and that's my only ability so if messi could visit me at night and if we could vote me for the shootout for the love of the game that'd be chill too
+
+You wouldn't be able to get visited for the mod confirm if you are one of the four in the event
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 06, 2026, 09:58:54 PM
+What team do yall play for?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Australian Shepherd on July 06, 2026, 10:04:18 PM
+England bruv
+Title: Re: Mafia 52 - World Cupfia
+Post by: Australian Shepherd on July 06, 2026, 10:05:43 PM
+Lowkirk I will 3-0 the penalty shootout
+Title: Re: Mafia 52 - World Cupfia
+Post by: Golden Retriever on July 06, 2026, 10:28:46 PM
+Quote from: Rottweiler on July 06, 2026, 09:51:14 PM
+Quote from: Golden Retriever on July 06, 2026, 08:44:41 PM
+hi guys im town and my ability is if messi visits me at night I get mod confirmed as town and that's my only ability so if messi could visit me at night and if we could vote me for the shootout for the love of the game that'd be chill too
+
+You wouldn't be able to get visited for the mod confirm if you are one of the four in the event
+
+ok then dont vote me but messi visit me
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 10:30:36 PM
+Guys please vote for me
+Title: Re: Mafia 52 - World Cupfia
+Post by: Labrador Retriever on July 06, 2026, 10:32:37 PM
+vote for me lol
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 10:34:02 PM
+You just said you didnt want to be voted....
+Title: Re: Mafia 52 - World Cupfia
+Post by: French Bulldog on July 06, 2026, 10:36:57 PM
+I reccomend voting for me.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 06, 2026, 10:52:18 PM
+Why is that French Bulldog?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 10:54:39 PM
+Have you never seen a french bulldog?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Cocker Spaniel on July 06, 2026, 11:30:57 PM
+Anyone else get a rare card?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 06, 2026, 11:50:57 PM
+Quote from: Cocker Spaniel on July 06, 2026, 11:30:57 PM
+Anyone else get a rare card?
+
+You got a good one?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pomeranian on July 06, 2026, 11:51:55 PM
+I don't even know who my guy is...
+Title: Re: Mafia 52 - World Cupfia
+Post by: Border Collie on July 07, 2026, 12:01:08 AM
+vote for me
+Title: Re: Mafia 52 - World Cupfia
+Post by: Cocker Spaniel on July 07, 2026, 12:13:56 AM
+Vote for women
+Title: Re: Mafia 52 - World Cupfia
+Post by: Portuguese Water Dog on July 07, 2026, 12:29:55 AM
+The 4 dogs with countries in their names should play
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 07, 2026, 12:47:28 AM
+Where my dogs at?
+Title: Re: Mafia 52 - World Cupfia
+Post by: Boxer on July 07, 2026, 12:51:35 AM
+Woof
+Title: Re: Mafia 52 - World Cupfia
+Post by: Corgi on July 07, 2026, 12:56:26 AM
+I'm confident in my ability to take a penalty.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Corgi on July 07, 2026, 02:13:09 AM
+It's so quiet...
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 07, 2026, 02:33:52 AM
+The hounds must rest for the day
+Title: Re: Mafia 52 - World Cupfia
+Post by: Dalmatian on July 07, 2026, 02:42:34 AM
+I cant make this up my verification image says Dante.
+
+Dogs are evil and messengers of the devil.
+
+Their dread turns wish: they yearn for what they fear.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Rottweiler on July 07, 2026, 03:08:07 AM
+Quote from: Cocker Spaniel on July 06, 2026, 11:30:57 PM
+Anyone else get a rare card?
+
+This is World Cup Mafia, not Presidents Mafia.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Golden Retriever on July 07, 2026, 04:37:13 AM
+Quote from: Labrador Retriever on July 06, 2026, 10:32:37 PM
+vote for me lol
+
+impostor
+Title: Re: Mafia 52 - World Cupfia
+Post by: Irish Wolfhound on July 07, 2026, 05:56:44 AM
+Guys, I think I know which dog may be Blottica. I have a hunch.
+Title: Re: Mafia 52 - World Cupfia
+Post by: Great Dane on July 07, 2026, 08:31:35 AM
+My dog is great so I should take the penalty
+Title: Re: Mafia 52 - World Cupfia
+Post by: Labrador Retriever on July 07, 2026, 10:43:38 AM
+Vote great dane
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pug on July 07, 2026, 11:53:09 AM
+good morning kittens
+Title: Re: Mafia 52 - World Cupfia
+Post by: Pitbull on July 07, 2026, 11:53:43 AM
+Woof :3
+Title: Re: Mafia 52 - World Cupfia
+Post by: Akita on July 07, 2026, 11:57:19 AM
+SIUUUUUUUU
+Text only | Text with Images
+SMF 2.1.6 © 2025, Simple Machines
+Simple Audio Video Embedder

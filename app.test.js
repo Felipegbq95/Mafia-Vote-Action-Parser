@@ -483,6 +483,54 @@ test("forum format: real game excerpt (Day 10) matches the game master's own fin
   assert.ok(!voters.includes("cellucore"));
 });
 
+test("forum format: real game excerpt (Day 1, bare unnumbered roster, no majority sentence, no 'Day N Start') resolves roster, majority and votes", () => {
+  // This game's alive-player-list post has no numbering (just one name per
+  // line) and the thread never contains a "With N players alive..."
+  // sentence or a literal "Day N Start" line at all -- it uses a one-off
+  // Day 1 mechanic instead of majority lynching. Roster/majority/day
+  // detection all have to degrade gracefully here instead of coming up
+  // empty.
+  const fixture = fs.readFileSync(path.join(__dirname, "fixtures", "day1-worldcup.txt"), "utf8");
+  const result = parseVotes(fixture, "");
+
+  assert.equal(result.roster.length, 24);
+  assert.ok(result.roster.includes("Great Dane"));
+  assert.ok(result.roster.includes("Akita"));
+  // No majority sentence in this thread -- falls back to floor(n/2)+1.
+  assert.equal(result.majority, 13);
+  // No literal "Day N Start" anywhere -- treated as an implicit Day 1.
+  assert.equal(result.day, 1);
+  assert.equal(result.dayFound, true);
+
+  // Great Dane's early "Vote: Boxer" is superseded by their own later,
+  // casual "vote for me" post (target resolution and re-vote-wins-latest
+  // are pre-existing, unrelated to the roster/majority/day fix under test
+  // here), so only Labrador Retriever's "Vote great dane" survives as a
+  // resolved current vote.
+  const greatDane = result.tallies.find((t) => t.display === "Great Dane");
+  assert.ok(greatDane, "Great Dane should have a vote");
+  assert.deepEqual(greatDane.voters, ["Labrador Retriever"]);
+});
+
+test("forum format: implicit Day 1 (no 'Day N Start' anywhere) still honors an explicit day request", () => {
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 12:00:00 PM",
+      "Alive Player List -\n\nAlice\nBob\nCarol"
+    ) + forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote bob");
+
+  const result = parseVotes(log, "", { day: 1 });
+  assert.equal(result.day, 1);
+  assert.equal(result.dayFound, true);
+  assert.deepEqual(result.roster, ["Alice", "Bob", "Carol"]);
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Bob");
+
+  const dayTwo = parseVotes(log, "", { day: 2 });
+  assert.equal(dayTwo.dayFound, false);
+});
+
 // --- BBCode output formats (mid-day check-in vs end-of-day final) ----------
 
 test("buildMessage mid-day mode: BBCode tally, alphabetical alive roster, majority and day-ends lines", () => {

@@ -376,7 +376,15 @@ const QUOTE_HEADER_RE = /^Quote from:\s*(.+?)\s+on\s+(.+?)\s*$/;
 const SYSTEM_SIGNATURE_RE =
   /Vote Count|Alive Player List|has been exiled|has been knocked out|Day\s+\d+\s+(Start|ends)|Final Vote Count|Nyaight\s+\d+\s+(has begun|ends)/i;
 const DAY_START_RE = /Day\s+(\d+)\s+Start/i;
-const ROSTER_BLOCK_RE = /Alive Player List([\s\S]*?)With\s+\d+\s+players?\s+alive/i;
+// Two roster-list styles show up in practice: a numbered list capped off
+// with a "With N players alive..." majority sentence (the common case,
+// see fixtures/day10.txt), and a bare one-name-per-line list with no
+// numbering and no majority sentence at all (games that use a non-standard
+// Day 1 mechanic instead of majority lynching). Neither the sentence nor
+// the numbering can be relied on to find the end of the block, so it's
+// terminated on the first blank line instead -- the roster is always a
+// tight run of consecutive lines with no gaps.
+const ROSTER_BLOCK_RE = /Alive Player List\s*[-:]?\s*\r?\n([\s\S]*?)\r?\n\s*\r?\n/i;
 const ROSTER_LINE_RE = /^\s*\d+[.,]\s*(.+?)\s*$/gm;
 const MAJORITY_RE = /With\s+\d+\s+players?\s+alive\s+it\s+will\s+take\s+(\d+)\s+to\s+achieve\s+majority/i;
 
@@ -588,10 +596,30 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
       names.push(stripSentinels(lm[1]));
     }
+    if (!names.length) {
+      // Not a numbered list -- fall back to treating every non-blank line
+      // in the block as a bare name.
+      rosterMatch[1]
+        .split("\n")
+        .map((l) => stripSentinels(l.trim()))
+        .filter(Boolean)
+        .forEach((n) => names.push(n));
+    }
     if (names.length) roster = names;
   }
   const majorityMatch = cleanText.match(MAJORITY_RE);
   if (majorityMatch) majority = parseInt(majorityMatch[1], 10);
+
+  // Some games (e.g. a non-standard Day 1 mechanic instead of majority
+  // lynching) never post a literal "Day N Start" line at all. Without one,
+  // dayNumber would stay null forever and a request for "Day 1"
+  // specifically would filter out every post. If the thread has no day
+  // markers whatsoever, treat the whole thing as an implicit Day 1 instead.
+  const hasDayMarkers = DAY_START_RE.test(cleanText);
+  if (!hasDayMarkers) {
+    dayNumber = 1;
+    dayFound = targetDay == null || targetDay === 1;
+  }
 
   for (const post of posts) {
     postMap.set(
