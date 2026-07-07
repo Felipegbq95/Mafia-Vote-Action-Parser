@@ -299,6 +299,23 @@ test("forum format: alias whitelist resolves nicknames unrelated to the roster n
   assert.equal(result.tallies[0].display, "Axatar");
 });
 
+test("forum format: an alias whose target isn't in the current roster is left unresolved, not guessed", () => {
+  // The alias list is a database spanning every game's pseudonyms, not
+  // just this one's -- "Axatar" isn't playing this particular game, so a
+  // stray "joe" shouldn't resolve to him even though the alias exists.
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 1:00:00 PM",
+      "Day 1 Start\n\nAlive Player List\n\n1. Akita\n2. Bob\n\nWith 2 players alive it will take 2 to achieve majority."
+    ) + forumPost("Bob", "May 1, 2026, 1:05:00 PM", "vote joe");
+
+  const result = parseVotes(log, "", { aliasText: "Axatar: Joe, Joe Boy" });
+  assert.equal(result.tallies.length, 0);
+  assert.equal(result.unresolvedTallies.length, 1);
+  assert.equal(result.unresolvedTallies[0].display, "joe");
+});
+
 // --- Bold-only voting -------------------------------------------------------
 //
 // When the pasted content actually carries bold formatting (via the

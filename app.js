@@ -148,7 +148,20 @@ function extractTarget(text, roster, aliasMap) {
     const candText = words.slice(0, n).join(" ").toLowerCase();
     const rosterIdx = rosterLower.indexOf(candText);
     if (rosterIdx !== -1) return { text: roster[rosterIdx], resolved: true };
-    if (aliasMap && aliasMap.has(candText)) return { text: aliasMap.get(candText), resolved: true };
+    if (aliasMap && aliasMap.has(candText)) {
+      const canonical = aliasMap.get(candText);
+      // KNOWN_ALIASES accumulates every pseudonym across every game, not
+      // just this one's roster, so an alias hit alone isn't enough -- only
+      // trust it if that pseudonym is actually in the currently-detected
+      // roster (or no roster is known at all, same "nothing to check
+      // against" case the roster/fuzzy branches below already allow).
+      // Otherwise a leftover alias from a past game could resolve a typo
+      // to someone who isn't even playing this one.
+      const canonicalIdx = rosterLower.indexOf(canonical.toLowerCase());
+      if (!rosterLower.length || canonicalIdx !== -1) {
+        return { text: rosterLower.length ? roster[canonicalIdx] : canonical, resolved: true };
+      }
+    }
   }
 
   if (rosterLower.length) {
@@ -988,43 +1001,41 @@ function initChoiceGroup(container, { defaultValue = "", allowDeselect = false }
 // these are edited here directly instead of being re-typed into the UI
 // every time. Both only kick in when the paste itself doesn't already
 // supply the info: FALLBACK_PLAYERS is only used when no "Alive Player
-// List" could be auto-detected, and KNOWN_ALIASES is only consulted for a
-// name that doesn't already exactly/fuzzily match the detected roster.
+// List" could be auto-detected.
 const FALLBACK_PLAYERS = ""; // comma-separated, e.g. "Alice, Bob, Carol"
-const KNOWN_ALIASES = ""; // one player per line: "RosterName: nickname1, nickname2"
 
-// A running record of every pseudonym that's been used across games so far,
-// kept separate from FALLBACK_PLAYERS/KNOWN_ALIASES on purpose: only a
-// subset of these plays in any single game, so this must never be treated
-// as a game's roster or auto-injected as a fallback. It isn't consulted by
-// any parsing logic yet -- add names here as new games introduce ones that
-// haven't shown up before, and it's ready whenever it's needed.
-const PLAYER_NAME_POOL = [
-  "Akita",
-  "Alaskan Malamute",
-  "Australian Shepherd",
-  "Beagle",
-  "Bernese Mountain Dog",
-  "Border Collie",
-  "Boxer",
-  "Cane Corso",
-  "Chihuahua",
-  "Cocker Spaniel",
-  "Corgi",
-  "Dalmatian",
-  "Dobermann",
-  "French Bulldog",
-  "Golden Retriever",
-  "Great Dane",
-  "Irish Wolfhound",
-  "Labrador Retriever",
-  "Pitbull",
-  "Pomeranian",
-  "Portuguese Water Dog",
-  "Pug",
-  "Rottweiler",
-  "Shiba Inu",
-];
+// One player per line: "PseudonymUsedInSomeGame: real nickname1, nickname2".
+// This is a running database of every pseudonym across every game so far,
+// not just the current one -- only a subset of these plays any given game,
+// so a name showing up here is never treated as part of the current
+// roster on its own (extractTarget above only trusts an alias hit here if
+// its target is actually in the currently-detected "Alive Player List"
+// roster). Add a bare "Name:" line with nothing after the colon for a
+// pseudonym you want tracked but don't have a real-world nickname for yet.
+const KNOWN_ALIASES = `Akita:
+Alaskan Malamute:
+Australian Shepherd:
+Beagle:
+Bernese Mountain Dog:
+Border Collie:
+Boxer:
+Cane Corso:
+Chihuahua:
+Cocker Spaniel:
+Corgi:
+Dalmatian:
+Dobermann:
+French Bulldog:
+Golden Retriever:
+Great Dane:
+Irish Wolfhound:
+Labrador Retriever:
+Pitbull:
+Pomeranian:
+Portuguese Water Dog:
+Pug:
+Rottweiler:
+Shiba Inu:`;
 
 if (typeof document !== "undefined") {
   const DAY_ENDS_AT_STORAGE_KEY = "mafia-vote-counter-day-ends-at";
