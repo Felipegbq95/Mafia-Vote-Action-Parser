@@ -118,6 +118,42 @@ test("fuzzy target matching leaves an ambiguous shorthand unresolved rather than
   assert.equal(result.unresolvedTallies[0].display, "retriever");
 });
 
+test("typo tolerance: a misspelled target within edit distance 2 resolves to the roster name", () => {
+  const roster = "Dalmatian, Blott, Border Collie";
+  const log = [
+    "Alice: VOTE: dalmation", // 1 substitution
+    "Bob: VOTE: dalmtian", // 1 deletion -- still Dalmatian, latest-wins keeps Bob's
+    "Carol: VOTE: blitt", // 1 substitution on a 5-letter name
+    "Dave: VOTE: border colie", // 1 deletion inside a multi-word name
+  ].join("\n");
+  const result = parseVotes(log, roster);
+  const byTarget = Object.fromEntries(result.tallies.map((t) => [t.display, t.voters]));
+  assert.deepEqual(byTarget["Dalmatian"].sort(), ["Alice", "Bob"]);
+  assert.deepEqual(byTarget["Blott"], ["Carol"]);
+  assert.deepEqual(byTarget["Border Collie"], ["Dave"]);
+  assert.equal(result.unresolvedTallies.length, 0);
+});
+
+test("typo tolerance: a typo equidistant from two roster names stays unresolved rather than guessing", () => {
+  const roster = "Blott, Blatt";
+  const log = ["Alice: VOTE: blutt"].join("\n");
+  const result = parseVotes(log, roster);
+  // "blutt" is 1 edit from both "blott" and "blatt" -- tied, so no guess.
+  assert.equal(result.tallies.length, 0);
+  assert.equal(result.unresolvedTallies.length, 1);
+});
+
+test("typo tolerance: short names get no slack, a different 3-letter word is not a typo", () => {
+  const roster = "Pug, Blott";
+  const log = ["Alice: VOTE: pit"].join("\n");
+  const result = parseVotes(log, roster);
+  // "pit" is within 2 edits of "pug" but on a 3-letter name that's a
+  // different word, not a misspelling.
+  assert.equal(result.tallies.length, 0);
+  assert.equal(result.unresolvedTallies.length, 1);
+  assert.equal(result.unresolvedTallies[0].display, "pit");
+});
+
 // --- Forum "print" thread format --------------------------------------------
 
 function forumPost(author, timestamp, body) {
@@ -179,17 +215,19 @@ test("forum format: a later Day N Start resets the tally", () => {
   assert.deepEqual(result.tallies[0].voters, ["Bob"]);
 });
 
-test("forum format: an unresolved vote target is shown raw in a separate list instead of silently dropped (e.g. a typo)", () => {
+test("forum format: an unresolved vote target is shown raw in a separate list instead of silently dropped", () => {
   const log =
     forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start\n\nAlive Player List\n\n1. Blott\n2. Zorf\n\nWith 2 players alive it will take 2 to achieve majority.") +
-    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote:blitt");
+    forumPost("Alice", "May 1, 2026, 1:05:00 PM", "vote:grendel");
 
   const result = parseVotes(log, "");
-  // Not a real tally entry (an unknown "blitt" shouldn't count toward anyone's
-  // majority) -- it shows up in the separate unresolved list instead.
+  // Not a real tally entry (an unknown "grendel" shouldn't count toward
+  // anyone's majority) -- it shows up in the separate unresolved list
+  // instead. Note this has to be a name nowhere near any roster entry:
+  // small typos like "blitt" for "Blott" resolve via edit distance now.
   assert.equal(result.tallies.length, 0);
   assert.equal(result.unresolvedTallies.length, 1);
-  assert.equal(result.unresolvedTallies[0].display, "blitt");
+  assert.equal(result.unresolvedTallies[0].display, "grendel");
   assert.deepEqual(result.unresolvedTallies[0].voters, ["Alice"]);
 });
 

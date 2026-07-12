@@ -129,6 +129,35 @@ function parseAliasMap(text) {
 // check against). If a roster is known and nothing matched, the raw typed
 // word is returned with resolved: false -- callers surface these separately
 // (e.g. a typo like "blitt") rather than silently dropping them.
+// Standard Levenshtein distance (insertions, deletions, substitutions all
+// cost 1), used for typo-tolerant target matching below.
+function editDistance(a, b) {
+  if (a === b) return 0;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
+// How many typo'd characters to forgive when matching a typed target
+// against a name of this length. Short names get no slack at all: with
+// only 3-4 letters, "2 characters off" is a different word entirely
+// ("pug" vs "pit"), not a typo.
+function typoAllowance(len) {
+  if (len >= 6) return 2;
+  if (len >= 4) return 1;
+  return 0;
+}
+
 function extractTarget(text, roster, aliasMap) {
   let candidate = text.replace(/^[\s:]*(?:for\s+)?/i, "");
   const stopMatch = candidate.match(/^([^.!?;\n]*)/);
@@ -182,6 +211,33 @@ function extractTarget(text, roster, aliasMap) {
       if (matches) fuzzyMatches.push(idx);
     });
     if (fuzzyMatches.length === 1) return { text: roster[fuzzyMatches[0]], resolved: true };
+
+    // Typo tolerance: "dalmation" for "Dalmatian", "blitt" for "Blott".
+    // Tries the same word-slices as the exact pass (so "border colie"
+    // can match "Border Collie" as a whole) plus the first word against
+    // each word of a multi-word name, keeping whichever roster entry is
+    // closest within its typo allowance. A tie between two different
+    // entries at the same distance is a genuine ambiguity -- leave it
+    // unresolved rather than guess, same policy as the prefix pass above.
+    let best = null;
+    let bestAmbiguous = false;
+    const consider = (idx, typed, name) => {
+      const dist = editDistance(typed, name);
+      if (dist > typoAllowance(Math.min(typed.length, name.length))) return;
+      if (!best || dist < best.dist) {
+        best = { idx, dist };
+        bestAmbiguous = false;
+      } else if (dist === best.dist && idx !== best.idx) {
+        bestAmbiguous = true;
+      }
+    };
+    rosterLower.forEach((r, idx) => {
+      for (let n = Math.min(words.length, 4); n >= 1; n--) {
+        consider(idx, words.slice(0, n).join(" ").toLowerCase(), r);
+      }
+      r.split(" ").forEach((part) => consider(idx, w0, part));
+    });
+    if (best && !bestAmbiguous) return { text: roster[best.idx], resolved: true };
   }
 
   if (!rosterLower.length) return { text: words[0], resolved: true };
