@@ -569,6 +569,69 @@ test("forum format: implicit Day 1 (no 'Day N Start' anywhere) still honors an e
   assert.equal(dayTwo.dayFound, false);
 });
 
+test("forum format: activity counts posts per roster player for the tallied day only", () => {
+  const log =
+    forumPost(
+      "Bobsal",
+      "May 1, 2026, 12:00:00 PM",
+      "Alive Player List\n\n1. Blott\n2. Cell\n3. Ele\n\nWith 3 players alive it will take 2 to achieve majority."
+    ) +
+    forumPost("Bobsal", "May 1, 2026, 1:00:00 PM", "Day 1 Start") +
+    // Full forum username "Blottica" must fuzzy-match roster name "Blott".
+    forumPost("Blottica", "May 1, 2026, 1:05:00 PM", "morning everyone") +
+    forumPost("Blottica", "May 1, 2026, 1:06:00 PM", "vote cell") +
+    forumPost("cellucore", "May 1, 2026, 1:10:00 PM", "rude") +
+    forumPost("Bobsal", "May 2, 2026, 1:00:00 PM", "Day 2 Start") +
+    // Day 2: only Ele posts -- day 1 counts must not leak into day 2.
+    forumPost("Eleplane", "May 2, 2026, 1:05:00 PM", "quiet day");
+
+  const day1 = parseVotes(log, "", { day: 1 });
+  const day1Counts = Object.fromEntries(day1.activity.map((a) => [a.name, a.posts]));
+  assert.deepEqual(day1Counts, { Blott: 2, Cell: 1, Ele: 0 });
+
+  const day2 = parseVotes(log, "", { day: 2 });
+  const day2Counts = Object.fromEntries(day2.activity.map((a) => [a.name, a.posts]));
+  assert.deepEqual(day2Counts, { Blott: 0, Cell: 0, Ele: 1 });
+
+  // With no day requested, activity reflects the latest day, same as votes.
+  const latest = parseVotes(log, "");
+  const latestCounts = Object.fromEntries(latest.activity.map((a) => [a.name, a.posts]));
+  assert.deepEqual(latestCounts, { Blott: 0, Cell: 0, Ele: 1 });
+});
+
+test("forum format: mod recap posts don't count toward anyone's activity", () => {
+  const log =
+    forumPost(
+      "Blott",
+      "May 1, 2026, 12:00:00 PM",
+      "Day 1 Start\n\nAlive Player List\n\n1. Blott\n2. Cell\n\nWith 2 players alive it will take 2 to achieve majority."
+    ) + forumPost("Cell", "May 1, 2026, 1:05:00 PM", "hello");
+
+  const result = parseVotes(log, "");
+  const counts = Object.fromEntries(result.activity.map((a) => [a.name, a.posts]));
+  // Blott's only "post" is the mod-style recap block, which is skipped as a
+  // system post -- it shouldn't count as game activity.
+  assert.deepEqual(counts, { Blott: 0, Cell: 1 });
+});
+
+test("real game excerpt: activity counts match the World Cupfia thread", () => {
+  const fixture = fs.readFileSync(path.join(__dirname, "fixtures", "day1-worldcup.txt"), "utf8");
+  const result = parseVotes(fixture, "");
+  const counts = Object.fromEntries(result.activity.map((a) => [a.name, a.posts]));
+
+  assert.equal(counts["Great Dane"], 9);
+  assert.equal(counts["Pug"], 6);
+  assert.equal(counts["Akita"], 1);
+  // Posted under "Doberman" (one n), fuzzy-matches roster's "Dobermann".
+  assert.equal(counts["Dobermann"], 1);
+  // Never posted this day:
+  assert.equal(counts["Shiba Inu"], 0);
+  assert.equal(counts["Beagle"], 0);
+  assert.equal(counts["Chihuahua"], 0);
+  // Every roster player appears exactly once in the activity list.
+  assert.equal(result.activity.length, 24);
+});
+
 // --- BBCode output formats (mid-day check-in vs end-of-day final) ----------
 
 test("buildMessage mid-day mode: BBCode tally, alphabetical alive roster, majority and day-ends lines", () => {

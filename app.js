@@ -337,6 +337,7 @@ const LINE_RE = /^([^:]{1,50}):\s*([\s\S]*)$/;
 function parseSimpleLog(logText, roster, aliasMap) {
   const requireBold = (logText || "").includes(BOLD_START);
   const currentVotes = new Map(); // authorLower -> { authorDisplay, targetLower, targetDisplay, order, resolved }
+  const postCounts = new Map(); // roster name (lowercase) -> message count
   const debug = [];
   const lines = (logText || "").split("\n");
   let order = 0;
@@ -355,6 +356,15 @@ function parseSimpleLog(logText, roster, aliasMap) {
     const author = lineMatch[1].trim();
     const message = lineMatch[2];
     const authorLower = author.toLowerCase();
+
+    const rosterEntry = roster.find((name) => {
+      const nameLower = name.toLowerCase();
+      return authorLower.startsWith(nameLower) || nameLower.startsWith(authorLower);
+    });
+    if (rosterEntry) {
+      const key = rosterEntry.toLowerCase();
+      postCounts.set(key, (postCounts.get(key) || 0) + 1);
+    }
     const action = findLastAction(message, roster, aliasMap, requireBold);
 
     if (!action) {
@@ -404,6 +414,11 @@ function parseSimpleLog(logText, roster, aliasMap) {
   const notVoting = roster.filter((p) => !votingAuthors.has(p.toLowerCase()));
   const majority = roster.length ? Math.floor(roster.length / 2) + 1 : null;
 
+  const activity = roster.map((name) => ({
+    name,
+    posts: postCounts.get(name.toLowerCase()) || 0,
+  }));
+
   return {
     day: null,
     requestedDay: null,
@@ -413,6 +428,7 @@ function parseSimpleLog(logText, roster, aliasMap) {
     notVoting,
     majority,
     roster,
+    activity,
     debug,
     showPostNumbers: false,
   };
@@ -629,6 +645,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
   const postMap = new Map();
 
   let currentVotes = new Map();
+  let postCounts = new Map(); // roster name (lowercase) -> posts this day
   let dayNumber = null;
   let dayFound = targetDay == null;
   const debug = [];
@@ -698,6 +715,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
         if (targetDay == null || newDay === targetDay) {
           dayNumber = newDay;
           currentVotes = new Map();
+          postCounts = new Map();
           if (newDay === targetDay) dayFound = true;
           debug.push({ line: `Day ${dayNumber} Start`, note: "new day detected, tally reset" });
         }
@@ -706,6 +724,20 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     }
 
     if (targetDay != null && dayNumber !== targetDay) continue;
+
+    // Per-day activity: attribute this post to a roster player (authors
+    // are full forum usernames while the roster may use short in-game
+    // names, so the same fuzzy prefix match as notVoting below applies)
+    // and count it, whether or not it contains a vote.
+    const postAuthorLower = post.author.toLowerCase();
+    const rosterEntry = roster.find((name) => {
+      const nameLower = name.toLowerCase();
+      return postAuthorLower.startsWith(nameLower) || nameLower.startsWith(postAuthorLower);
+    });
+    if (rosterEntry) {
+      const key = rosterEntry.toLowerCase();
+      postCounts.set(key, (postCounts.get(key) || 0) + 1);
+    }
 
     const contentBold = bold.slice(post.contentAbsStart, post.contentAbsEnd);
     const contentQuoted = quoted.slice(post.contentAbsStart, post.contentAbsEnd);
@@ -771,6 +803,11 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
 
   if (majority === null && roster.length) majority = Math.floor(roster.length / 2) + 1;
 
+  const activity = roster.map((name) => ({
+    name,
+    posts: postCounts.get(name.toLowerCase()) || 0,
+  }));
+
   return {
     day: dayNumber,
     requestedDay: targetDay,
@@ -780,6 +817,7 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     notVoting,
     majority,
     roster,
+    activity,
     debug,
     showPostNumbers: true,
   };
@@ -1140,6 +1178,8 @@ if (typeof document !== "undefined") {
   const detectedInfo = document.getElementById("detected-info");
   const unresolvedSection = document.getElementById("unresolved-section");
   const unresolvedList = document.getElementById("unresolved-list");
+  const activitySection = document.getElementById("activity-section");
+  const activityList = document.getElementById("activity-list");
 
   const modeGroup = initChoiceGroup(document.getElementById("mode-group"), { defaultValue: "midday" });
   const dayEndsOnGroup = initChoiceGroup(document.getElementById("day-ends-on-group"), { allowDeselect: true });
@@ -1224,6 +1264,41 @@ if (typeof document !== "undefined") {
       li.textContent = `${entry.line}: ${entry.note}`;
       if (entry.ignored) li.classList.add("ignored");
       debugList.appendChild(li);
+    }
+
+    if (activitySection && activityList) {
+      activityList.innerHTML = "";
+      // Silent players first (they're the ones the mod is scanning for),
+      // then everyone else, alphabetical within each group.
+      const activity = (result.activity || []).slice().sort((a, b) => {
+        if ((a.posts === 0) !== (b.posts === 0)) return a.posts === 0 ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      activitySection.hidden = activity.length === 0;
+      const svgAttrs =
+        'class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+      for (const entry of activity) {
+        const li = document.createElement("li");
+        li.className = `activity-row ${entry.posts ? "posted" : "not-posted"}`;
+
+        const check = document.createElement("span");
+        check.className = "activity-check";
+        check.setAttribute("title", entry.posts ? "has posted today" : "hasn't posted today");
+        check.innerHTML = entry.posts
+          ? `<svg ${svgAttrs}><path d="M20 6 9 17l-5-5"/></svg>`
+          : `<svg ${svgAttrs}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+
+        const name = document.createElement("span");
+        name.className = "activity-name";
+        name.textContent = entry.name;
+
+        const count = document.createElement("span");
+        count.className = "activity-count";
+        count.textContent = `${entry.posts} post${entry.posts === 1 ? "" : "s"}`;
+
+        li.append(check, name, count);
+        activityList.appendChild(li);
+      }
     }
 
     if (unresolvedSection && unresolvedList) {
