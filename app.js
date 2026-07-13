@@ -79,6 +79,17 @@ function stripSentinels(raw) {
   return (raw || "").replace(/[\u0001\u0002]/g, "").trim();
 }
 
+// A forum "print" page renders a linked username as visible text with the
+// profile URL spelled out after it, e.g.
+//   Akita (https://www.example.com/forums/index.php?action=profile;u=2279)
+// When that page is pasted, the URL comes along as part of the name. Strip
+// a trailing parenthesized http(s) URL so roster entries (and the vote
+// targets that resolve to them) stay clean; a name with no such link is
+// returned unchanged.
+function stripProfileUrl(name) {
+  return (name || "").replace(/\s*\(\s*https?:\/\/[^)]*\)\s*$/i, "").trim();
+}
+
 function normalizeTarget(raw) {
   if (!raw) return "";
   return raw
@@ -667,14 +678,14 @@ function parseForumThread(rawText, { fallbackRoster = [], targetDay = null, alia
     let lm;
     ROSTER_LINE_RE.lastIndex = 0;
     while ((lm = ROSTER_LINE_RE.exec(rosterMatch[1])) !== null) {
-      names.push(stripSentinels(lm[1]));
+      names.push(stripProfileUrl(stripSentinels(lm[1])));
     }
     if (!names.length) {
       // Not a numbered list -- fall back to treating every non-blank line
       // in the block as a bare name.
       rosterMatch[1]
         .split("\n")
-        .map((l) => stripSentinels(l.trim()))
+        .map((l) => stripProfileUrl(stripSentinels(l.trim())))
         .filter(Boolean)
         .forEach((n) => names.push(n));
     }

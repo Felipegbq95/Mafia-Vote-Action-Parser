@@ -302,6 +302,49 @@ test("forum format: alive roster is found even when it predates any \"Day N Star
   assert.deepEqual(result.tallies[0].voters, ["Bob"]);
 });
 
+test("forum format: profile URLs after linked roster names (from a print page) are stripped", () => {
+  // A forum print page renders a linked username as "Name (https://.../profile)"
+  // in the visible text, so the URL rides along when the page is pasted. It
+  // must not end up in the roster list or in the resolved vote target.
+  const u = (n, id) =>
+    `${n} (https://www.mightguild.com/forums/index.php?action=profile;area=showposts;u=${id})`;
+  const log =
+    forumPost(
+      "Bubblekin",
+      "May 1, 2026, 12:00:00 PM",
+      `Day 1 Start\n\nAlive Player List\n\n1. ${u("Chihuahua", 2260)}\n2. ${u("Great Dane", 2272)}\n\nWith 2 players alive it will take 2 to achieve majority.`
+    ) + forumPost("Great Dane", "May 1, 2026, 1:05:00 PM", "vote chihuahua");
+
+  const result = parseVotes(log, "");
+  assert.deepEqual(result.roster, ["Chihuahua", "Great Dane"]);
+  assert.equal(result.tallies.length, 1);
+  assert.equal(result.tallies[0].display, "Chihuahua");
+  assert.match(buildMessage(result), /1\. Chihuahua\n2\. Great Dane/);
+});
+
+test("forum format: a bare roster with profile URLs and no numbering is also cleaned", () => {
+  const u = (n, id) => `${n} (https://example.com/u=${id})`;
+  const log = forumPost(
+    "Mod",
+    "May 1, 2026, 12:00:00 PM",
+    `Alive Player List -\n\n${u("Alice", 1)}\n${u("Bob", 2)}\n${u("Carol", 3)}`
+  );
+
+  const result = parseVotes(log, "");
+  assert.deepEqual(result.roster, ["Alice", "Bob", "Carol"]);
+});
+
+test("forum format: a legitimate parenthetical in a name (not a URL) is left alone", () => {
+  const log = forumPost(
+    "Mod",
+    "May 1, 2026, 12:00:00 PM",
+    "Day 1 Start\n\nAlive Player List\n\n1. Bob (the builder)\n2. Carol\n\nWith 2 players alive it will take 2 to achieve majority."
+  );
+
+  const result = parseVotes(log, "");
+  assert.deepEqual(result.roster, ["Bob (the builder)", "Carol"]);
+});
+
 test("forum format: requesting a day that isn't in the pasted thread is reported, not silently wrong", () => {
   const log = forumPost(
     "Bobsal",
